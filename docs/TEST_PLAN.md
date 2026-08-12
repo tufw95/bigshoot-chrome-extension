@@ -27,9 +27,12 @@
 
 ## Destination
 
-- [ ] **Save to device** creates a PNG in `Downloads/Bigshoot`.
+- [ ] **Save to device** uses Chrome's configured download location.
+- [ ] Enable **Ask where to save each file before downloading** and confirm Chrome opens its file chooser.
+- [ ] Disable that setting and confirm Chrome downloads without forcing a file chooser.
 - [ ] Confirm filenames contain no invalid characters and do not overwrite older captures.
 - [ ] **Copy to clipboard** can be pasted into Slack, Docs, or Preview.
+- [ ] Confirm the success or error notification is fully visible in the bottom-right corner.
 - [ ] Confirm settings persist after Chrome is closed and reopened.
 
 ## Error cases

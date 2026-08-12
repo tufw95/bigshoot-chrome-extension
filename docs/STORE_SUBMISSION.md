@@ -8,7 +8,7 @@ This guide covers **Private** distribution to users in the same Google Workspace
 npm run package
 ```
 
-Output: `dist/bigshoot-1.0.0.zip`.
+Output: `dist/bigshoot-1.0.1.zip`.
 
 Before publishing each new release, update all of the following:
 
@@ -66,7 +66,6 @@ The Chrome Web Store requires a clear explanation for each sensitive permission:
 | `debugger` | Calls the Chrome DevTools Protocol method `Page.captureScreenshot` to capture content beyond the viewport, equivalent to Capture node screenshot. The connection is detached immediately after every capture. |
 | `downloads` | Saves a PNG to the device when the user selects download mode. |
 | `clipboardWrite` | Copies a PNG to the clipboard when the user selects clipboard mode. |
-| `offscreen` | Creates the minimal background document required to use the Clipboard API in Manifest V3. |
 | `storage` | Stores the screenshot destination and padding setting. |
 | `contextMenus` | Adds **Bigshoot settings** to the action icon's context menu. |
 

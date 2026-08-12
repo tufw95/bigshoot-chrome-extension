@@ -9,7 +9,8 @@ archive="dist/bigshoot-${version}.zip"
 
 mkdir -p dist
 rm -f "$archive"
-zip -qr "$archive" manifest.json src icons/icon-16.png icons/icon-32.png icons/icon-48.png icons/icon-128.png \
+zip -qr "$archive" manifest.json src/background.js src/picker.js src/options \
+  icons/icon-16.png icons/icon-32.png icons/icon-48.png icons/icon-128.png \
   -x '*.DS_Store'
 
 echo "Created $archive"

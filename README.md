@@ -11,7 +11,7 @@ Bigshoot is a Chrome extension that captures an entire DOM element using the fam
 
 To change where screenshots are sent, right-click the Bigshoot icon, choose **Bigshoot settings**, then select:
 
-- **Save to device**: creates a PNG in `Downloads/Bigshoot`.
+- **Save to device**: follows Chrome's current download location and **Ask where to save each file before downloading** setting.
 - **Copy to clipboard**: pastes directly into chat, documents, or design tools.
 
 ## Install from source
@@ -42,7 +42,6 @@ manifest.json                 Manifest V3 configuration and permissions
 src/background.js             Capture, download, and clipboard coordination
 src/picker.js                 In-page element picker
 src/options/                  Settings page
-src/offscreen/                PNG clipboard writer
 icons/                        Extension icons
 docs/STORE_SUBMISSION.md      Internal publishing checklist
 docs/TEST_PLAN.md             Manual test scenarios

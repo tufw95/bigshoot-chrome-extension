@@ -4,7 +4,6 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 const MENU_ID = "bigshoot-settings";
-const OFFSCREEN_DOCUMENT = "src/offscreen/offscreen.html";
 
 chrome.runtime.onInstalled.addListener(async () => {
   const saved = await chrome.storage.sync.get(DEFAULT_SETTINGS);
@@ -62,6 +61,7 @@ async function captureSelection(tab, mode) {
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   let debuggerAttached = false;
   let prepared = false;
+  let captureError = null;
 
   try {
     const preparation = await chrome.tabs.sendMessage(tab.id, {
@@ -104,26 +104,16 @@ async function captureSelection(tab, mode) {
     const filename = buildFilename(tab.title, mode);
 
     if (settings.destination === "clipboard") {
-      await copyImageToClipboard(dataUrl);
+      await copyImageToClipboard(tab.id, dataUrl);
     } else {
       await chrome.downloads.download({
         url: dataUrl,
         filename,
         conflictAction: "uniquify",
-        saveAs: false,
       });
     }
-
-    await chrome.tabs.sendMessage(tab.id, {
-      type: "BIGSHOOT_CAPTURE_COMPLETE",
-      destination: settings.destination,
-    });
   } catch (error) {
-    await safeSend(tab.id, {
-      type: "BIGSHOOT_CAPTURE_FAILED",
-      error: humanizeCaptureError(error),
-    });
-    throw error;
+    captureError = error;
   } finally {
     if (debuggerAttached) {
       await chrome.debugger.detach({ tabId: tab.id }).catch(() => {});
@@ -132,37 +122,31 @@ async function captureSelection(tab, mode) {
       await safeSend(tab.id, { type: "BIGSHOOT_RESTORE_PAGE" });
     }
   }
+
+  if (captureError) {
+    await safeSend(tab.id, {
+      type: "BIGSHOOT_CAPTURE_FAILED",
+      error: humanizeCaptureError(captureError),
+    });
+    throw captureError;
+  }
+
+  await safeSend(tab.id, {
+    type: "BIGSHOOT_CAPTURE_COMPLETE",
+    destination: settings.destination,
+  });
 }
 
-async function copyImageToClipboard(dataUrl) {
-  await ensureOffscreenDocument();
-  const response = await chrome.runtime.sendMessage({
-    target: "offscreen",
+async function copyImageToClipboard(tabId, dataUrl) {
+  const response = await chrome.tabs.sendMessage(tabId, {
     type: "BIGSHOOT_COPY_IMAGE",
     dataUrl,
   });
 
   if (!response?.ok) {
-    throw new Error(response?.error || "The image could not be copied to the clipboard.");
+    console.warn("Bigshoot clipboard write failed:", response?.error);
+    throw new Error("Chrome could not copy the PNG. Keep this tab active and try again.");
   }
-}
-
-async function ensureOffscreenDocument() {
-  const offscreenUrl = chrome.runtime.getURL(OFFSCREEN_DOCUMENT);
-  const contexts = await chrome.runtime.getContexts({
-    contextTypes: ["OFFSCREEN_DOCUMENT"],
-    documentUrls: [offscreenUrl],
-  });
-
-  if (contexts.length > 0) {
-    return;
-  }
-
-  await chrome.offscreen.createDocument({
-    url: OFFSCREEN_DOCUMENT,
-    reasons: ["CLIPBOARD"],
-    justification: "Copy the PNG image the user just captured to the clipboard.",
-  });
 }
 
 function isSupportedUrl(url = "") {
@@ -180,7 +164,7 @@ function buildFilename(title = "page", mode = "element") {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const suffix = mode === "page" ? "full-page" : "element";
 
-  return `Bigshoot/${safeTitle || "page"}-${suffix}-${stamp}.png`;
+  return `${safeTitle || "page"}-${suffix}-${stamp}.png`;
 }
 
 async function safeSend(tabId, message) {

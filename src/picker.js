@@ -38,6 +38,13 @@
       return false;
     }
 
+    if (message?.type === "BIGSHOOT_COPY_IMAGE") {
+      copyImageToClipboard(message.dataUrl)
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      return true;
+    }
+
     if (message?.type === "BIGSHOOT_CAPTURE_COMPLETE") {
       const text = message.destination === "clipboard"
         ? "Image copied to the clipboard"
@@ -409,6 +416,38 @@
     }, duration);
   }
 
+  async function copyImageToClipboard(dataUrl) {
+    if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+      throw new Error("The Clipboard API is not available in this tab.");
+    }
+
+    const blob = dataUrlToBlob(dataUrl);
+    await navigator.clipboard.write([
+      new ClipboardItem({ "image/png": blob }),
+    ]);
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const separator = dataUrl.indexOf(",");
+    if (separator === -1) {
+      throw new Error("The screenshot data is invalid.");
+    }
+
+    const metadata = dataUrl.slice(0, separator);
+    const encoded = dataUrl.slice(separator + 1);
+    const mimeType = metadata.match(/^data:([^;,]+)/)?.[1] || "image/png";
+    const binary = metadata.includes(";base64")
+      ? atob(encoded)
+      : decodeURIComponent(encoded);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new Blob([bytes], { type: mimeType });
+  }
+
   function waitForPaint() {
     return new Promise((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(resolve));
@@ -423,11 +462,36 @@
     const host = document.createElement("div");
     host.id = "bigshoot-extension-root";
     host.hidden = true;
+    for (const [property, value] of Object.entries({
+      position: "fixed",
+      inset: "0",
+      zIndex: "2147483647",
+      width: "0",
+      height: "0",
+      overflow: "visible",
+      pointerEvents: "none",
+    })) {
+      host.style.setProperty(
+        property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`),
+        value,
+        "important",
+      );
+    }
     const shadow = host.attachShadow({ mode: "closed" });
 
     const style = document.createElement("style");
     style.textContent = `
-      :host { all: initial; }
+      :host {
+        all: initial;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        width: 0;
+        height: 0;
+        overflow: visible;
+        pointer-events: none;
+      }
+      :host([hidden]) { display: none; }
       * { box-sizing: border-box; }
       .focus {
         position: fixed;

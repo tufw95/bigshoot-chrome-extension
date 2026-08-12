@@ -7,7 +7,6 @@ const requiredFiles = [
   manifest.options_ui.page,
   ...Object.values(manifest.icons),
   "src/picker.js",
-  "src/offscreen/offscreen.html",
 ];
 
 for (const file of new Set(requiredFiles)) {

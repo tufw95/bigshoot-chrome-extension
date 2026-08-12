@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Bigshoot - Element Screenshots",
   "short_name": "Bigshoot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Capture an entire element, scrollable region, or full page with one click.",
   "minimum_chrome_version": "109",
   "permissions": [
@@ -11,7 +11,6 @@
     "contextMenus",
     "debugger",
     "downloads",
-    "offscreen",
     "scripting",
     "storage"
   ],
