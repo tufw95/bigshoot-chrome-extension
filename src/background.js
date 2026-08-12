@@ -78,6 +78,11 @@ async function captureSelection(tab, mode) {
     await chrome.debugger.attach({ tabId: tab.id }, "1.3");
     debuggerAttached = true;
     await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.enable");
+    const layoutMetrics = await chrome.debugger.sendCommand(
+      { tabId: tab.id },
+      "Page.getLayoutMetrics",
+    );
+    const deviceScaleFactor = getDeviceScaleFactor(layoutMetrics);
 
     const result = await chrome.debugger.sendCommand(
       { tabId: tab.id },
@@ -91,7 +96,7 @@ async function captureSelection(tab, mode) {
           y: preparation.clip.y,
           width: preparation.clip.width,
           height: preparation.clip.height,
-          scale: 1,
+          scale: 1 / deviceScaleFactor,
         },
       },
     );
@@ -135,6 +140,15 @@ async function captureSelection(tab, mode) {
     type: "BIGSHOOT_CAPTURE_COMPLETE",
     destination: settings.destination,
   });
+}
+
+function getDeviceScaleFactor(layoutMetrics) {
+  const cssWidth = layoutMetrics?.cssVisualViewport?.clientWidth;
+  const deviceWidth = layoutMetrics?.visualViewport?.clientWidth;
+  if (!Number.isFinite(cssWidth) || !Number.isFinite(deviceWidth) || cssWidth <= 0 || deviceWidth <= 0) {
+    return 1;
+  }
+  return Math.max(1, deviceWidth / cssWidth);
 }
 
 async function copyImageToClipboard(tabId, dataUrl) {

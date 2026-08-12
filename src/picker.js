@@ -84,7 +84,7 @@
     document.addEventListener("pointermove", onPointerMove, true);
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("click", blockClick, true);
-    window.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
   }
 
   function stop() {
@@ -97,7 +97,7 @@
     document.removeEventListener("pointermove", onPointerMove, true);
     document.removeEventListener("pointerdown", onPointerDown, true);
     document.removeEventListener("click", blockClick, true);
-    window.removeEventListener("keydown", onKeyDown, true);
+    document.removeEventListener("keydown", onKeyDown, true);
   }
 
   function onPointerMove(event) {
@@ -226,6 +226,11 @@
     const padding = clamp(Number(paddingInput) || 0, 0, 64);
 
     if (mode === "page") {
+      const surface = findActiveCaptureSurface();
+      if (surface) {
+        return prepareSurfaceCapture(surface);
+      }
+      expandDocumentScrollRegions();
       await waitForPaint();
       const size = getDocumentSize();
       return sanitizeClip({ x: 0, y: 0, width: size.width, height: size.height });
@@ -240,8 +245,12 @@
       return prepareSurfaceCapture(element);
     }
 
-    expandScrollableElement(element);
-    revealClippedAncestors(element);
+    const activeSurface = findActiveCaptureSurface();
+    if (activeSurface?.contains(element)) {
+      expandElementInsideSurface(element, activeSurface);
+    } else {
+      expandCaptureTree(element);
+    }
     await waitForPaint();
 
     const rect = element.getBoundingClientRect();
@@ -273,6 +282,7 @@
     }
 
     expandSurfaceRoot(surface, initialRect);
+    neutralizeStickyDescendants(surface);
     await waitForPaint();
 
     const rect = surface.getBoundingClientRect();
@@ -285,6 +295,23 @@
       width,
       height,
     });
+  }
+
+  function expandElementInsideSurface(element, surface) {
+    const initialRect = surface.getBoundingClientRect();
+    const scrollRegion = findPrimaryScrollRegion(surface);
+
+    if (scrollRegion) {
+      rememberScrollPosition(scrollRegion);
+      scrollRegion.scrollTop = 0;
+      scrollRegion.scrollLeft = 0;
+      expandSurfaceScrollRegion(scrollRegion, surface);
+    } else {
+      expandCaptureTree(element);
+    }
+
+    expandSurfaceRoot(surface, initialRect);
+    neutralizeStickyDescendants(surface);
   }
 
   function expandSurfaceScrollRegion(scrollRegion, surface) {
@@ -310,6 +337,8 @@
     let ancestor = scrollRegion.parentElement;
     while (ancestor && ancestor !== surface) {
       rememberStyles(ancestor, [
+        "flex",
+        "flex-basis",
         "height",
         "min-height",
         "max-height",
@@ -317,12 +346,28 @@
         "overflow-y",
         "contain",
       ]);
+      ancestor.style.setProperty("flex", "0 0 auto", "important");
       ancestor.style.setProperty("height", "auto", "important");
+      ancestor.style.setProperty("min-height", "0", "important");
       ancestor.style.setProperty("max-height", "none", "important");
       ancestor.style.setProperty("overflow", "visible", "important");
       ancestor.style.setProperty("overflow-y", "visible", "important");
       ancestor.style.setProperty("contain", "none", "important");
       ancestor = ancestor.parentElement;
+    }
+  }
+
+  function neutralizeStickyDescendants(root) {
+    for (const element of root.querySelectorAll("*")) {
+      if (!(element instanceof HTMLElement) || getComputedStyle(element).position !== "sticky") {
+        continue;
+      }
+      rememberStyles(element, ["position", "top", "right", "bottom", "left"]);
+      element.style.setProperty("position", "static", "important");
+      element.style.setProperty("top", "auto", "important");
+      element.style.setProperty("right", "auto", "important");
+      element.style.setProperty("bottom", "auto", "important");
+      element.style.setProperty("left", "auto", "important");
     }
   }
 
@@ -387,12 +432,97 @@
     element.style.setProperty("contain", "none", "important");
   }
 
+  function expandCaptureTree(element) {
+    rememberScrollPosition(element);
+    element.scrollTop = 0;
+    element.scrollLeft = 0;
+    expandScrollableElement(element);
+
+    let ancestor = element.parentElement;
+    while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
+      const style = getComputedStyle(ancestor);
+      const clipsVertically = ancestor.scrollHeight > ancestor.clientHeight + 1
+        && /(auto|scroll|overlay|hidden|clip)/.test(style.overflowY);
+      const clipsHorizontally = ancestor.scrollWidth > ancestor.clientWidth + 1
+        && /(auto|scroll|overlay|hidden|clip)/.test(style.overflowX);
+
+      if (clipsVertically || clipsHorizontally) {
+        rememberScrollPosition(ancestor);
+        ancestor.scrollTop = 0;
+        ancestor.scrollLeft = 0;
+        rememberStyles(ancestor, [
+          "flex",
+          "flex-basis",
+          "height",
+          "width",
+          "min-height",
+          "min-width",
+          "max-height",
+          "max-width",
+          "overflow",
+          "overflow-x",
+          "overflow-y",
+          "contain",
+        ]);
+
+        if (clipsVertically) {
+          const height = Math.max(ancestor.getBoundingClientRect().height, ancestor.scrollHeight);
+          ancestor.style.setProperty("height", `${height}px`, "important");
+          ancestor.style.setProperty("min-height", `${height}px`, "important");
+          ancestor.style.setProperty("max-height", "none", "important");
+        }
+        if (clipsHorizontally) {
+          const width = Math.max(ancestor.getBoundingClientRect().width, ancestor.scrollWidth);
+          ancestor.style.setProperty("width", `${width}px`, "important");
+          ancestor.style.setProperty("min-width", `${width}px`, "important");
+          ancestor.style.setProperty("max-width", "none", "important");
+        }
+        ancestor.style.setProperty("flex", "0 0 auto", "important");
+        ancestor.style.setProperty("overflow", "visible", "important");
+        ancestor.style.setProperty("overflow-x", "visible", "important");
+        ancestor.style.setProperty("overflow-y", "visible", "important");
+        ancestor.style.setProperty("contain", "none", "important");
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    revealClippedAncestors(element);
+    neutralizeStickyDescendants(element);
+  }
+
+  function expandDocumentScrollRegions() {
+    const candidates = [...document.querySelectorAll("body *")]
+      .filter((element) => (
+        element instanceof HTMLElement
+        && isScrollable(element)
+        && isViewportScrollRegion(element)
+      ))
+      .sort((a, b) => scoreScrollRegion(b) - scoreScrollRegion(a));
+
+    for (const element of candidates) {
+      rememberScrollPosition(element);
+      element.scrollTop = 0;
+      element.scrollLeft = 0;
+      expandCaptureTree(element);
+      neutralizeStickyDescendants(element);
+    }
+  }
+
+  function isViewportScrollRegion(element) {
+    const rect = element.getBoundingClientRect();
+    const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+    const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+    const visibleArea = visibleWidth * visibleHeight;
+    const hiddenHeight = Math.max(0, element.scrollHeight - element.clientHeight);
+    return hiddenHeight > 1 && visibleArea >= window.innerWidth * window.innerHeight * 0.4;
+  }
+
   function revealClippedAncestors(element) {
     let ancestor = element.parentElement;
     while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
       const style = getComputedStyle(ancestor);
       const clips = [style.overflow, style.overflowX, style.overflowY]
-        .some((value) => ["hidden", "clip"].includes(value));
+        .some((value) => ["auto", "scroll", "overlay", "hidden", "clip"].includes(value));
 
       if (clips) {
         rememberStyles(ancestor, ["overflow", "overflow-x", "overflow-y"]);
@@ -448,11 +578,31 @@
 
   function getSelectableTarget(event) {
     const path = event.composedPath?.() || [];
-    const target = path.find((node) => node instanceof HTMLElement && node !== ui.host);
+    const target = path
+      .filter((node) => node instanceof HTMLElement && node !== ui.host)
+      .map((node) => ({ node, score: scoreSelectableTarget(node) }))
+      .sort((a, b) => b.score - a.score)[0]?.node;
     if (!target || ui.host.contains(target)) {
       return null;
     }
     return target;
+  }
+
+  function scoreSelectableTarget(element) {
+    const rect = element.getBoundingClientRect();
+    const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+    const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+    const areaScore = visibleWidth * visibleHeight;
+    const scrollScore = isScrollable(element)
+      ? Math.max(1, element.scrollHeight - element.clientHeight) * Math.max(1, visibleWidth) * 4
+      : 0;
+    const semantics = element.matches("main, article, section, aside, dialog, [role='dialog']")
+      ? areaScore * 0.35
+      : 0;
+    const rootPenalty = element === document.body || element === document.documentElement
+      ? window.innerWidth * window.innerHeight * 2
+      : 0;
+    return areaScore + scrollScore + semantics - rootPenalty;
   }
 
   function isFullPageTarget(element) {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.3 - 2026-08-12
+
+- Expand the complete flex shell around independently scrolling content so fixed drawers and selected scroll regions include their final rows.
+- Temporarily place sticky descendants in normal document flow during capture to prevent Chrome from repeating the top of a drawer below the original viewport boundary.
+- Prefer meaningful scrollable ancestors in the element picker, making large scroll regions easier to select without precisely targeting their empty padding.
+- Normalize screenshot output to CSS pixel dimensions on high-density displays.
+- Treat full-page capture as full-window capture when an active modal, drawer, or dialog covers the page.
+
 ## 1.0.2 - 2026-08-12
 
 - Make full capture detect an open modal, drawer, or dialog and include all content inside its independently scrolling body.

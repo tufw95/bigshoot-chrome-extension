@@ -8,7 +8,7 @@ This guide covers **Private** distribution to users in the same Google Workspace
 npm run package
 ```
 
-Output: `dist/bigshoot-1.0.2.zip`.
+Output: `dist/bigshoot-1.0.3.zip`.
 
 Before publishing each new release, update all of the following:
 
