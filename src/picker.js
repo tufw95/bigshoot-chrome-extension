@@ -40,8 +40,8 @@
 
     if (message?.type === "BIGSHOOT_CAPTURE_COMPLETE") {
       const text = message.destination === "clipboard"
-        ? "Đã sao chép ảnh vào clipboard"
-        : "Đã lưu ảnh vào thư mục Downloads";
+        ? "Image copied to the clipboard"
+        : "Image saved to Downloads";
       showToast(text, "success");
       sendResponse({ ok: true });
       return false;
@@ -49,7 +49,7 @@
 
     if (message?.type === "BIGSHOOT_CAPTURE_FAILED") {
       restorePage();
-      showToast(message.error || "Không thể chụp vùng này", "error");
+      showToast(message.error || "This region could not be captured", "error");
       sendResponse({ ok: true });
       return false;
     }
@@ -151,7 +151,7 @@
     if (event.key === "Escape") {
       event.preventDefault();
       stop();
-      showToast("Đã hủy chụp", "neutral");
+      showToast("Capture canceled", "neutral");
       return;
     }
 
@@ -171,12 +171,12 @@
 
   function beginCapture() {
     stop();
-    showToast("Đang chụp…", "working", 12000);
+    showToast("Capturing...", "working", 12000);
     chrome.runtime.sendMessage({
       type: "BIGSHOOT_CAPTURE_SELECTION",
       mode: state.mode,
     }).catch((error) => {
-      showToast(error.message || "Không thể bắt đầu chụp", "error");
+      showToast(error.message || "The capture could not be started", "error");
     });
   }
 
@@ -185,13 +185,13 @@
     const rect = target.getBoundingClientRect();
     const fullPage = isFullPageTarget(target);
     const scrollable = !fullPage && isScrollable(target);
-    const name = fullPage ? "TOÀN TRANG" : describeElement(target);
+    const name = fullPage ? "FULL PAGE" : describeElement(target);
     const width = fullPage ? getDocumentSize().width : Math.round(Math.max(rect.width, target.scrollWidth));
     const height = fullPage ? getDocumentSize().height : Math.round(Math.max(rect.height, target.scrollHeight));
 
     positionFocus(rect, fullPage);
     ui.label.textContent = name;
-    ui.meta.textContent = `${width} × ${height}${scrollable ? " · vùng cuộn" : ""}`;
+    ui.meta.textContent = `${width} x ${height}${scrollable ? " - scrollable" : ""}`;
   }
 
   function positionFocus(rect, fullPage) {
@@ -210,7 +210,7 @@
 
   async function prepareCapture(mode, paddingInput) {
     if (!state.selected && mode !== "page") {
-      throw new Error("Element đã chọn không còn tồn tại.");
+      throw new Error("The selected element no longer exists.");
     }
 
     hideExtensionUi();
@@ -224,7 +224,7 @@
 
     const element = state.selected;
     if (!element.isConnected) {
-      throw new Error("Element đã chọn đã bị thay đổi trước khi chụp.");
+      throw new Error("The selected element changed before it could be captured.");
     }
 
     expandScrollableElement(element);
@@ -552,9 +552,9 @@
     help.className = "help";
     help.innerHTML = `
       <span class="mark" aria-hidden="true">⌖</span>
-      <span>Click để chụp</span>
-      <kbd>F</kbd><span>Toàn trang</span>
-      <kbd>↑</kbd><span>Element cha</span>
+      <span>Click to capture</span>
+      <kbd>F</kbd><span>Full page</span>
+      <kbd>↑</kbd><span>Parent element</span>
       <kbd>Esc</kbd>
     `;
 

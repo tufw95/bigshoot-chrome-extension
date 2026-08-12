@@ -1,64 +1,64 @@
 # Bigshoot
 
-Bigshoot là Chrome extension giúp chụp toàn bộ một DOM element theo cách quen thuộc của **Capture node screenshot** trong DevTools, nhưng nhanh và dễ dùng hơn. Extension có thể mở rộng một vùng cuộn độc lập (ví dụ sidebar) trước khi chụp, sau đó khôi phục trang về đúng trạng thái ban đầu.
+Bigshoot is a Chrome extension that captures an entire DOM element using the familiar **Capture node screenshot** workflow from DevTools, without requiring users to open DevTools. It can temporarily expand an independently scrollable region, such as a sidebar, capture all hidden content, and restore the page to its original state.
 
-## Cách dùng
+## How to use it
 
-1. Bấm icon máy ảnh Bigshoot trên thanh công cụ Chrome.
-2. Rê chuột để chọn element. Khung xanh hiển thị vùng và kích thước ảnh dự kiến.
-3. Click để chụp.
-4. Nhấn `F` để chụp toàn trang, `↑` để chọn element cha hoặc `Esc` để hủy.
+1. Click the Bigshoot camera icon in the Chrome toolbar.
+2. Move the pointer to select an element. The cyan frame shows the target and expected image size.
+3. Click to capture it.
+4. Press `F` for a full-page capture, `↑` to select the parent element, or `Esc` to cancel.
 
-Để đổi nơi nhận ảnh, nhấp chuột phải vào icon Bigshoot, chọn **Cài đặt Bigshoot**, rồi chọn:
+To change where screenshots are sent, right-click the Bigshoot icon, choose **Bigshoot settings**, then select:
 
-- **Lưu về máy**: tạo PNG trong `Downloads/Bigshoot`.
-- **Copy vào clipboard**: dán trực tiếp vào chat, tài liệu hoặc công cụ thiết kế.
+- **Save to device**: creates a PNG in `Downloads/Bigshoot`.
+- **Copy to clipboard**: pastes directly into chat, documents, or design tools.
 
-## Cài thử từ mã nguồn
+## Install from source
 
-1. Mở `chrome://extensions`.
-2. Bật **Developer mode**.
-3. Chọn **Load unpacked**.
-4. Chọn thư mục chứa `manifest.json` của dự án này.
-5. Ghim Bigshoot lên thanh công cụ.
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Select **Load unpacked**.
+4. Choose the project directory containing `manifest.json`.
+5. Pin Bigshoot to the Chrome toolbar.
 
-Chrome không cho extension chạy trên các trang nội bộ như `chrome://`, Chrome Web Store và một số trình xem hệ thống. Nếu đang mở DevTools trên chính tab cần chụp, hãy đóng DevTools trước vì Chrome chỉ cho một debugger kết nối vào tab tại một thời điểm.
+Chrome does not allow extensions to run on internal pages such as `chrome://`, the Chrome Web Store, and some system viewers. Close DevTools on the tab before capturing because Chrome only permits one debugger connection to a tab at a time.
 
-## Phát triển
+## Development
 
-Yêu cầu Node.js 20 trở lên. Dự án không có dependency runtime và không gửi dữ liệu ra ngoài.
+Node.js 20 or later is required. The extension has no runtime dependencies and does not send data to external services.
 
 ```bash
 npm run check
 npm run package
 ```
 
-File ZIP sẵn sàng tải lên Chrome Web Store được tạo tại `dist/bigshoot-<version>.zip`.
+The Chrome Web Store-ready archive is created at `dist/bigshoot-<version>.zip`.
 
-## Cấu trúc
+## Project structure
 
 ```text
-manifest.json                 Manifest V3 và khai báo quyền
-src/background.js             Điều phối chụp, tải xuống và clipboard
-src/picker.js                 Giao diện chọn element trong trang
-src/options/                  Trang cài đặt
-src/offscreen/                Ghi PNG vào clipboard
-icons/                        Icon extension
-docs/STORE_SUBMISSION.md      Checklist phát hành nội bộ
-docs/TEST_PLAN.md             Kịch bản kiểm thử thủ công
+manifest.json                 Manifest V3 configuration and permissions
+src/background.js             Capture, download, and clipboard coordination
+src/picker.js                 In-page element picker
+src/options/                  Settings page
+src/offscreen/                PNG clipboard writer
+icons/                        Extension icons
+docs/STORE_SUBMISSION.md      Internal publishing checklist
+docs/TEST_PLAN.md             Manual test scenarios
 ```
 
-## Giới hạn kỹ thuật
+## Technical limitations
 
-- Trang hoặc element quá 32.767 px theo một chiều có thể bị giới hạn bởi khả năng dựng ảnh của Chrome/GPU.
-- Nội dung lazy-load chỉ xuất hiện sau khi cuộn sẽ cần được tải trước khi chụp.
-- Canvas/WebGL, video hoặc iframe khác origin có thể có hành vi khác tùy chính sách bảo mật của trang.
-- Với layout thay đổi mạnh khi sidebar được mở rộng, ảnh có thể khác nhẹ so với trạng thái cuộn ban đầu.
+- Pages or elements larger than 32,767 px on either axis may be limited by Chrome or the GPU rendering pipeline.
+- Lazy-loaded content that appears only after scrolling must be loaded before capture.
+- Canvas, WebGL, video, and cross-origin iframe content may behave differently depending on the page's security policies.
+- Layouts that reflow significantly when a sidebar is expanded may look slightly different from their original scrolled state.
 
-## Quyền riêng tư
+## Privacy
 
-Bigshoot không thu thập hay truyền dữ liệu. Xem [PRIVACY.md](PRIVACY.md) để biết chi tiết.
+Bigshoot does not collect or transmit data. See [PRIVACY.md](PRIVACY.md) for details.
 
-## Giấy phép
+## License
 
 [MIT](LICENSE)

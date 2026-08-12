@@ -1,30 +1,30 @@
-# Chính sách quyền riêng tư của Bigshoot
+# Bigshoot Privacy Policy
 
-Cập nhật lần cuối: 12/08/2026
+Last updated: August 12, 2026
 
-Bigshoot là extension chụp ảnh màn hình chạy hoàn toàn trong trình duyệt Chrome.
+Bigshoot is a screenshot extension that runs entirely inside Google Chrome.
 
-## Dữ liệu được xử lý
+## Data processed
 
-Bigshoot chỉ xử lý nội dung hiển thị của tab khi người dùng chủ động bấm icon extension và chọn vùng cần chụp. Ảnh được tạo sẽ được tải xuống máy hoặc sao chép vào clipboard theo cài đặt của người dùng.
+Bigshoot processes the visible content of a tab only after the user explicitly clicks the extension icon and selects a capture region. The resulting image is downloaded to the device or copied to the clipboard according to the user's setting.
 
-## Dữ liệu được thu thập
+## Data collected
 
-Bigshoot không thu thập, lưu trữ, bán hoặc truyền dữ liệu cá nhân, nội dung trang web, lịch sử duyệt web hay ảnh chụp tới bất kỳ máy chủ nào. Extension không có analytics, quảng cáo hoặc mã theo dõi.
+Bigshoot does not collect, store, sell, or transmit personal data, website content, browsing history, or screenshots to any server. The extension contains no analytics, advertising, or tracking code.
 
-## Lưu trữ cài đặt
+## Settings storage
 
-Hai giá trị được lưu bằng Chrome Storage Sync:
+Two values are stored with Chrome Storage Sync:
 
-- Nơi nhận ảnh: tải xuống hoặc clipboard.
-- Khoảng đệm quanh element.
+- Screenshot destination: download or clipboard.
+- Padding around the selected element.
 
-Nếu người dùng bật đồng bộ Chrome, Google có thể đồng bộ các giá trị cài đặt này giữa các trình duyệt đã đăng nhập theo chính sách của Google Chrome.
+When Chrome Sync is enabled, Google may synchronize these settings between signed-in browsers according to Google Chrome's policies.
 
-## Quyền của Chrome
+## Chrome permissions
 
-Danh sách quyền và lý do sử dụng được mô tả trong `docs/STORE_SUBMISSION.md`. Quyền truy cập trang chỉ có hiệu lực tạm thời sau thao tác bấm icon của người dùng.
+The permissions and their purposes are documented in `docs/STORE_SUBMISSION.md`. Page access is temporary and is granted only after the user clicks the extension icon.
 
-## Liên hệ
+## Contact
 
-Vấn đề liên quan đến quyền riêng tư có thể được gửi qua mục Issues của repository GitHub chính thức của Bigshoot.
+Privacy questions can be submitted through the Issues section of the official Bigshoot GitHub repository.

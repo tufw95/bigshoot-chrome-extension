@@ -1,9 +1,9 @@
 # Chrome Web Store assets
 
-Các tài sản sẵn sàng dùng cho listing Bigshoot:
+The following assets are ready for the Bigshoot listing:
 
-- `screenshots/picker-1280x800.png`: chế độ rê chuột chọn một sidebar cuộn.
-- `screenshots/settings-1280x800.png`: trang chọn tải xuống/clipboard và khoảng đệm.
-- `../icons/icon-128.png`: icon 128 × 128 để tải lên dashboard.
+- `screenshots/picker-1280x800.png`: the pointer-based picker selecting a scrollable sidebar.
+- `screenshots/settings-1280x800.png`: download/clipboard and padding settings.
+- `../icons/icon-128.png`: the 128 x 128 icon for the developer dashboard.
 
-Không chỉnh kích thước hoặc thêm viền quanh hai screenshot trước khi tải lên Chrome Web Store.
+Do not resize the screenshots or add borders before uploading them to the Chrome Web Store.

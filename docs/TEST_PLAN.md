@@ -1,40 +1,40 @@
-# Kế hoạch kiểm thử Bigshoot
+# Bigshoot test plan
 
-## Cài đặt
+## Installation
 
-- [ ] Load unpacked thành công trên Chrome phiên bản 109 trở lên.
-- [ ] Icon hiển thị đúng ở 16, 32, 48 và 128 px.
-- [ ] Nhấp chuột phải icon có mục **Cài đặt Bigshoot**.
-- [ ] Không chạy trên `chrome://extensions` và hiển thị badge lỗi ngắn.
+- [ ] Load the unpacked extension successfully in Chrome 109 or later.
+- [ ] Confirm the icon renders correctly at 16, 32, 48, and 128 px.
+- [ ] Confirm right-clicking the icon shows **Bigshoot settings**.
+- [ ] Confirm the extension does not run on `chrome://extensions` and briefly displays an error badge.
 
-## Chọn element
+## Element picker
 
-- [ ] Bấm icon rồi rê chuột: khung xanh bám đúng element.
-- [ ] Nhãn hiển thị tên node, kích thước và trạng thái vùng cuộn.
-- [ ] Click không kích hoạt link/button của trang.
-- [ ] Phím `↑` chọn element cha.
-- [ ] Phím `Esc` thoát và trang hoạt động bình thường.
+- [ ] Click the icon and move the pointer; the cyan frame follows the correct element.
+- [ ] Confirm the label shows the node name, dimensions, and scrollable status.
+- [ ] Confirm the capture click does not activate an underlying link or button.
+- [ ] Press `↑` to select the parent element.
+- [ ] Press `Esc` to exit and confirm the page works normally afterward.
 
-## Chụp ảnh
+## Screenshot capture
 
-- [ ] Element nằm hoàn toàn trong viewport được chụp đúng.
-- [ ] Element dài hơn viewport được chụp đủ phần dưới.
-- [ ] Element nằm dưới fold được chụp đúng mà không cần cuộn tới đáy.
-- [ ] Sidebar `overflow: auto` được mở rộng và chụp đủ nội dung cuộn.
-- [ ] Trang được khôi phục chiều cao, overflow và layout sau khi chụp sidebar.
-- [ ] Phím `F` chụp đủ chiều dài trang.
-- [ ] Khoảng đệm trong Settings thay đổi kích thước ảnh như dự kiến.
+- [ ] Capture an element fully contained in the viewport.
+- [ ] Capture an element taller than the viewport, including its lower content.
+- [ ] Capture an element below the fold without first scrolling to the bottom.
+- [ ] Capture an `overflow: auto` sidebar with all of its scrollable content.
+- [ ] Confirm the page restores the sidebar height, overflow, and layout after capture.
+- [ ] Press `F` and capture the full document height.
+- [ ] Change padding in Settings and confirm the output dimensions change as expected.
 
-## Đích đến
+## Destination
 
-- [ ] Chế độ **Lưu về máy** tạo PNG trong `Downloads/Bigshoot`.
-- [ ] Tên file không chứa ký tự không hợp lệ và không ghi đè ảnh cũ.
-- [ ] Chế độ **Copy vào clipboard** dán được vào Slack, Docs hoặc Preview.
-- [ ] Cài đặt được giữ sau khi đóng và mở lại Chrome.
+- [ ] **Save to device** creates a PNG in `Downloads/Bigshoot`.
+- [ ] Confirm filenames contain no invalid characters and do not overwrite older captures.
+- [ ] **Copy to clipboard** can be pasted into Slack, Docs, or Preview.
+- [ ] Confirm settings persist after Chrome is closed and reopened.
 
-## Trường hợp lỗi
+## Error cases
 
-- [ ] Khi DevTools đang mở trên tab, Bigshoot hướng dẫn đóng DevTools.
-- [ ] Điều hướng tab trong lúc chụp không để lại debugger kết nối.
-- [ ] Element bị xóa trong lúc chọn tạo thông báo lỗi dễ hiểu.
-- [ ] Trang rất dài hoặc ảnh vượt giới hạn Chrome thất bại an toàn và khôi phục layout.
+- [ ] With DevTools open on the tab, confirm Bigshoot asks the user to close DevTools.
+- [ ] Navigate the tab during capture and confirm no debugger connection remains attached.
+- [ ] Remove the selected element during capture and confirm a clear error is displayed.
+- [ ] Confirm an extremely large page or Chrome dimension-limit failure restores the page safely.

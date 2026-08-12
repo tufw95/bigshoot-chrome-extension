@@ -31,7 +31,7 @@ async function saveSettings(event) {
     padding: Number(paddingInput.value),
   });
 
-  status.textContent = "Đã lưu. Lần chụp tiếp theo sẽ dùng cài đặt này.";
+  status.textContent = "Saved. Your next capture will use this setting.";
   setTimeout(() => {
     status.textContent = "";
   }, 3500);

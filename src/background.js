@@ -13,7 +13,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: MENU_ID,
-      title: "Cài đặt Bigshoot",
+      title: "Bigshoot settings",
       contexts: ["action"],
     });
   });
@@ -27,7 +27,7 @@ chrome.contextMenus.onClicked.addListener((info) => {
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id || !isSupportedUrl(tab.url)) {
-    await showBadgeError(tab.id, "Trang này không cho phép extension chụp ảnh.");
+    await showBadgeError(tab.id, "Chrome does not allow extensions to capture this page.");
     return;
   }
 
@@ -56,7 +56,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function captureSelection(tab, mode) {
   if (!tab?.id || !tab.windowId) {
-    throw new Error("Không tìm thấy tab đang chụp.");
+    throw new Error("The active capture tab could not be found.");
   }
 
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
@@ -71,7 +71,7 @@ async function captureSelection(tab, mode) {
     });
 
     if (!preparation?.ok || !preparation.clip) {
-      throw new Error(preparation?.error || "Không đo được vùng cần chụp.");
+      throw new Error(preparation?.error || "The capture region could not be measured.");
     }
     prepared = true;
 
@@ -97,7 +97,7 @@ async function captureSelection(tab, mode) {
     );
 
     if (!result?.data) {
-      throw new Error("Chrome không trả về dữ liệu ảnh.");
+      throw new Error("Chrome did not return screenshot data.");
     }
 
     const dataUrl = `data:image/png;base64,${result.data}`;
@@ -143,7 +143,7 @@ async function copyImageToClipboard(dataUrl) {
   });
 
   if (!response?.ok) {
-    throw new Error(response?.error || "Không thể sao chép ảnh vào clipboard.");
+    throw new Error(response?.error || "The image could not be copied to the clipboard.");
   }
 }
 
@@ -161,7 +161,7 @@ async function ensureOffscreenDocument() {
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_DOCUMENT,
     reasons: ["CLIPBOARD"],
-    justification: "Sao chép ảnh PNG do người dùng vừa chụp vào clipboard.",
+    justification: "Copy the PNG image the user just captured to the clipboard.",
   });
 }
 
@@ -201,21 +201,21 @@ async function showBadgeError(tabId, message) {
   await chrome.action.setTitle({ tabId, title: `Bigshoot: ${message}` });
   setTimeout(() => {
     chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
-    chrome.action.setTitle({ tabId, title: "Chọn element để chụp" }).catch(() => {});
+    chrome.action.setTitle({ tabId, title: "Select an element to capture" }).catch(() => {});
   }, 4000);
 }
 
 function humanizeCaptureError(error) {
   const message = normalizeError(error);
   if (/Another debugger|already attached|target is already being debugged/i.test(message)) {
-    return "Hãy đóng DevTools của tab này rồi chụp lại.";
+    return "Close DevTools for this tab, then try again.";
   }
   if (/Cannot access|permission|not allowed/i.test(message)) {
-    return "Chrome không cho phép chụp trang này.";
+    return "Chrome does not allow this page to be captured.";
   }
   return message;
 }
 
 function normalizeError(error) {
-  return error instanceof Error ? error.message : String(error || "Đã có lỗi xảy ra.");
+  return error instanceof Error ? error.message : String(error || "Something went wrong.");
 }

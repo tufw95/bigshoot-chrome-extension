@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cài đặt Bigshoot</title>
+    <title>Bigshoot settings</title>
     <link rel="stylesheet" href="options.css">
   </head>
   <body>
@@ -14,22 +14,22 @@
         </div>
         <div>
           <p class="eyebrow">BIGSHOOT / SETTINGS</p>
-          <h1>Chụp đúng thứ bạn thấy.</h1>
-          <p class="intro">Chọn nơi ảnh sẽ đi tới sau mỗi lần bạn click vào một element.</p>
+          <h1>Capture exactly what you see.</h1>
+          <p class="intro">Choose where each screenshot goes after you click an element.</p>
         </div>
       </header>
 
       <form id="settings-form" class="settings-card">
         <fieldset>
-          <legend>Đích đến của ảnh</legend>
-          <p class="field-note">Thiết lập này áp dụng ngay từ lần chụp tiếp theo.</p>
+          <legend>Screenshot destination</legend>
+          <p class="field-note">This setting applies to your next capture immediately.</p>
 
           <label class="choice">
             <input type="radio" name="destination" value="download" checked>
             <span class="choice-icon" aria-hidden="true">↓</span>
             <span>
-              <strong>Lưu về máy</strong>
-              <small>Ảnh PNG được lưu trong Downloads/Bigshoot.</small>
+              <strong>Save to device</strong>
+              <small>PNG files are saved in Downloads/Bigshoot.</small>
             </span>
             <span class="check" aria-hidden="true"></span>
           </label>
@@ -38,8 +38,8 @@
             <input type="radio" name="destination" value="clipboard">
             <span class="choice-icon" aria-hidden="true">⌘</span>
             <span>
-              <strong>Copy vào clipboard</strong>
-              <small>Dán thẳng vào chat, tài liệu hoặc công cụ thiết kế.</small>
+              <strong>Copy to clipboard</strong>
+              <small>Paste directly into chat, documents, or design tools.</small>
             </span>
             <span class="check" aria-hidden="true"></span>
           </label>
@@ -47,8 +47,8 @@
 
         <div class="padding-field">
           <div>
-            <label for="padding">Khoảng đệm quanh element</label>
-            <p>Giữ lại một chút không gian để ảnh trông tự nhiên hơn.</p>
+            <label for="padding">Padding around the element</label>
+            <p>Keep a little surrounding space for a more natural screenshot.</p>
           </div>
           <output id="padding-value" for="padding">16 px</output>
           <input id="padding" name="padding" type="range" min="0" max="48" step="4" value="16">
@@ -56,15 +56,15 @@
 
         <footer class="form-footer">
           <p id="status" role="status" aria-live="polite"></p>
-          <button type="submit">Lưu cài đặt</button>
+          <button type="submit">Save settings</button>
         </footer>
       </form>
 
-      <section class="shortcut-strip" aria-label="Phím tắt khi chọn element">
-        <span><kbd>Click</kbd> Chụp element</span>
-        <span><kbd>F</kbd> Chụp toàn trang</span>
-        <span><kbd>↑</kbd> Chọn element cha</span>
-        <span><kbd>Esc</kbd> Hủy</span>
+      <section class="shortcut-strip" aria-label="Element picker shortcuts">
+        <span><kbd>Click</kbd> Capture element</span>
+        <span><kbd>F</kbd> Capture full page</span>
+        <span><kbd>↑</kbd> Select parent</span>
+        <span><kbd>Esc</kbd> Cancel</span>
       </section>
     </main>
     <script src="options.js"></script>
