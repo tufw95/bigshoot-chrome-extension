@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bigshoot test page</title>
+    <style>
+      :root {
+        color: #173137;
+        background: #eef5f3;
+        font-family: Avenir, "Trebuchet MS", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 76px;
+        padding: 0 42px;
+        color: white;
+        background: #173137;
+      }
+      header strong { font-family: Rockwell, serif; font-size: 23px; }
+      header span { color: #8ee7ef; font-size: 13px; }
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 28px;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 42px 28px 100px;
+      }
+      .hero {
+        min-height: 430px;
+        padding: 46px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(23,49,55,.1);
+      }
+      .hero p:first-child {
+        color: #0b7f8c;
+        font-family: monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .1em;
+      }
+      h1 {
+        max-width: 650px;
+        margin: 22px 0;
+        font-family: Rockwell, serif;
+        font-size: 60px;
+        line-height: .98;
+        letter-spacing: -.04em;
+      }
+      .hero p:last-child { max-width: 610px; color: #62787b; font-size: 18px; line-height: 1.65; }
+      .sidebar {
+        position: sticky;
+        top: 28px;
+        height: 520px;
+        overflow: auto;
+        padding: 18px;
+        background: #dff5f5;
+        border: 1px solid #8fcfd2;
+        border-radius: 18px;
+      }
+      .sidebar h2 { margin: 5px 4px 16px; font-family: Rockwell, serif; }
+      .card {
+        min-height: 150px;
+        margin-bottom: 12px;
+        padding: 18px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(23,49,55,.08);
+      }
+      .card strong { display: block; margin-bottom: 8px; }
+      .card span { color: #678084; font-size: 13px; line-height: 1.5; }
+      .content {
+        grid-column: 1;
+        display: grid;
+        gap: 18px;
+      }
+      .content article { min-height: 280px; padding: 34px; background: white; border-radius: 18px; }
+      @media (max-width: 760px) {
+        main { grid-template-columns: 1fr; }
+        .sidebar { position: static; }
+        h1 { font-size: 44px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header><strong>Northstar</strong><span>Bigshoot capture fixture</span></header>
+    <main>
+      <section class="hero">
+        <p>PROJECT / 08.12.2026</p>
+        <h1>Một trang dài, một sidebar cuộn.</h1>
+        <p>Fixture này mô phỏng hai trường hợp Bigshoot cần xử lý: element dài nằm dưới viewport và panel có vùng cuộn độc lập.</p>
+      </section>
+      <aside class="sidebar" id="scrolling-sidebar">
+        <h2>Hoạt động</h2>
+        <div class="card"><strong>Khởi tạo dự án</strong><span>Thông tin ở đầu sidebar.</span></div>
+        <div class="card"><strong>Hoàn thiện wireframe</strong><span>Nội dung tiếp tục bên dưới vùng nhìn thấy.</span></div>
+        <div class="card"><strong>Duyệt nội dung</strong><span>Bigshoot phải chụp được thẻ này dù chưa cuộn tới.</span></div>
+        <div class="card"><strong>Bàn giao thiết kế</strong><span>Phần cuối của vùng cuộn độc lập.</span></div>
+      </aside>
+      <section class="content">
+        <article><h2>Phần nội dung 01</h2><p>Trang tiếp tục kéo dài bên dưới viewport.</p></article>
+        <article><h2>Phần nội dung 02</h2><p>Ảnh full page phải bao gồm cả phần này.</p></article>
+        <article><h2>Phần nội dung 03</h2><p>Điểm kết thúc của fixture.</p></article>
+      </section>
+    </main>
+  </body>
+</html>

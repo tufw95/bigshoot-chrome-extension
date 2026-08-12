@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cài đặt Bigshoot</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+        </div>
+        <div>
+          <p class="eyebrow">BIGSHOOT / SETTINGS</p>
+          <h1>Chụp đúng thứ bạn thấy.</h1>
+          <p class="intro">Chọn nơi ảnh sẽ đi tới sau mỗi lần bạn click vào một element.</p>
+        </div>
+      </header>
+
+      <form id="settings-form" class="settings-card">
+        <fieldset>
+          <legend>Đích đến của ảnh</legend>
+          <p class="field-note">Thiết lập này áp dụng ngay từ lần chụp tiếp theo.</p>
+
+          <label class="choice">
+            <input type="radio" name="destination" value="download" checked>
+            <span class="choice-icon" aria-hidden="true">↓</span>
+            <span>
+              <strong>Lưu về máy</strong>
+              <small>Ảnh PNG được lưu trong Downloads/Bigshoot.</small>
+            </span>
+            <span class="check" aria-hidden="true"></span>
+          </label>
+
+          <label class="choice">
+            <input type="radio" name="destination" value="clipboard">
+            <span class="choice-icon" aria-hidden="true">⌘</span>
+            <span>
+              <strong>Copy vào clipboard</strong>
+              <small>Dán thẳng vào chat, tài liệu hoặc công cụ thiết kế.</small>
+            </span>
+            <span class="check" aria-hidden="true"></span>
+          </label>
+        </fieldset>
+
+        <div class="padding-field">
+          <div>
+            <label for="padding">Khoảng đệm quanh element</label>
+            <p>Giữ lại một chút không gian để ảnh trông tự nhiên hơn.</p>
+          </div>
+          <output id="padding-value" for="padding">16 px</output>
+          <input id="padding" name="padding" type="range" min="0" max="48" step="4" value="16">
+        </div>
+
+        <footer class="form-footer">
+          <p id="status" role="status" aria-live="polite"></p>
+          <button type="submit">Lưu cài đặt</button>
+        </footer>
+      </form>
+
+      <section class="shortcut-strip" aria-label="Phím tắt khi chọn element">
+        <span><kbd>Click</kbd> Chụp element</span>
+        <span><kbd>F</kbd> Chụp toàn trang</span>
+        <span><kbd>↑</kbd> Chọn element cha</span>
+        <span><kbd>Esc</kbd> Hủy</span>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
