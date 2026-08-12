@@ -162,7 +162,11 @@ function buildFilename(title = "page", mode = "element") {
     .slice(0, 72)
     .toLowerCase();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const suffix = mode === "page" ? "full-page" : "element";
+  const suffix = mode === "page"
+    ? "full-page"
+    : mode === "surface"
+      ? "full-window"
+      : "element";
 
   return `${safeTitle || "page"}-${suffix}-${stamp}.png`;
 }

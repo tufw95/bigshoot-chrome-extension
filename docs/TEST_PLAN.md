@@ -23,7 +23,16 @@
 - [ ] Capture an `overflow: auto` sidebar with all of its scrollable content.
 - [ ] Confirm the page restores the sidebar height, overflow, and layout after capture.
 - [ ] Press `F` and capture the full document height.
+- [ ] Open a fixed modal or drawer with an independently scrolling body, press `F`, and capture all hidden content without the page behind it.
+- [ ] Confirm the modal or drawer returns to its original size and scroll position after capture.
 - [ ] Change padding in Settings and confirm the output dimensions change as expected.
+
+## Keyboard shortcut
+
+- [ ] Press `⌘⇧6` on macOS or `Ctrl+Shift+6` elsewhere and confirm the element picker opens.
+- [ ] Open Settings and confirm the currently assigned shortcut is displayed.
+- [ ] Select **Change shortcut** and confirm Chrome opens `chrome://extensions/shortcuts`.
+- [ ] Change the shortcut in Chrome and confirm Settings shows the new value when revisited.
 
 ## Destination
 

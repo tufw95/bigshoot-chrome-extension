@@ -7,7 +7,9 @@ Bigshoot is a Chrome extension that captures an entire DOM element using the fam
 1. Click the Bigshoot camera icon in the Chrome toolbar.
 2. Move the pointer to select an element. The cyan frame shows the target and expected image size.
 3. Click to capture it.
-4. Press `F` for a full-page capture, `↑` to select the parent element, or `Esc` to cancel.
+4. Press `F` to capture the full page. If a modal, drawer, or dialog is open, `F` captures its complete scrollable content instead. Press `↑` to select the parent element, or `Esc` to cancel.
+
+Press `⌘⇧6` on macOS (`Ctrl+Shift+6` elsewhere) to open Bigshoot without clicking the toolbar icon. Chrome owns extension shortcuts; use **Bigshoot settings → Change shortcut** to customize it.
 
 To change where screenshots are sent, right-click the Bigshoot icon, choose **Bigshoot settings**, then select:
 

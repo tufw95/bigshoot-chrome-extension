@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 - 2026-08-12
+
+- Make full capture detect an open modal, drawer, or dialog and include all content inside its independently scrolling body.
+- Add `Command+Shift+6` on macOS and `Ctrl+Shift+6` elsewhere as the default Bigshoot shortcut.
+- Show the active shortcut in Settings and link to Chrome's shortcut editor for customization.
+
 ## 1.0.1 - 2026-08-12
 
 - Write PNG data through the active tab so the clipboard receives a native image instead of failing in an unfocused offscreen document.

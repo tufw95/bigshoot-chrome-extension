@@ -54,6 +54,20 @@
           <input id="padding" name="padding" type="range" min="0" max="48" step="4" value="16">
         </div>
 
+        <section class="command-field" aria-labelledby="command-title">
+          <div class="command-copy">
+            <span class="command-icon" aria-hidden="true">⌘</span>
+            <div>
+              <h2 id="command-title">Open Bigshoot</h2>
+              <p>Chrome manages extension shortcuts so they keep working on every website.</p>
+            </div>
+          </div>
+          <div class="command-control">
+            <output id="command-shortcut" aria-label="Current keyboard shortcut">⌘ ⇧ 6</output>
+            <button id="change-shortcut" class="secondary-button" type="button">Change shortcut</button>
+          </div>
+        </section>
+
         <footer class="form-footer">
           <p id="status" role="status" aria-live="polite"></p>
           <button type="submit">Save settings</button>
@@ -62,7 +76,7 @@
 
       <section class="shortcut-strip" aria-label="Element picker shortcuts">
         <span><kbd>Click</kbd> Capture element</span>
-        <span><kbd>F</kbd> Capture full page</span>
+        <span><kbd>F</kbd> Capture full page or open window</span>
         <span><kbd>↑</kbd> Select parent</span>
         <span><kbd>Esc</kbd> Cancel</span>
       </section>

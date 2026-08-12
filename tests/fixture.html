@@ -81,6 +81,64 @@
         gap: 18px;
       }
       .content article { min-height: 280px; padding: 34px; background: white; border-radius: 18px; }
+
+      .drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        background: rgba(15, 23, 42, 0.42);
+      }
+
+      .drawer-backdrop[hidden],
+      .test-drawer[hidden] {
+        display: none;
+      }
+
+      .open-drawer {
+        margin-top: 24px;
+        padding: 12px 18px;
+        color: white;
+        background: #0b7f8c;
+        border: 0;
+        border-radius: 10px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .test-drawer {
+        position: fixed;
+        z-index: 21;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        width: min(680px, 80vw);
+        flex-direction: column;
+        background: white;
+        box-shadow: -20px 0 60px rgba(15, 23, 42, 0.24);
+      }
+
+      .drawer-header {
+        flex: 0 0 auto;
+        padding: 22px 28px;
+        border-bottom: 1px solid #dbe5e7;
+      }
+
+      .drawer-body {
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding: 24px 28px;
+      }
+
+      .drawer-section {
+        min-height: 420px;
+        margin-bottom: 18px;
+        padding: 28px;
+        background: #f4f8f8;
+        border-radius: 16px;
+      }
       @media (max-width: 760px) {
         main { grid-template-columns: 1fr; }
         .sidebar { position: static; }
@@ -95,6 +153,7 @@
         <p>PROJECT / 08.12.2026</p>
         <h1>One long page, one scrolling sidebar.</h1>
         <p>This fixture reproduces the two cases Bigshoot needs to handle: a long element below the viewport and an independently scrollable panel.</p>
+        <button class="open-drawer" type="button">Open drawer fixture</button>
       </section>
       <aside class="sidebar" id="scrolling-sidebar">
         <h2>Activity</h2>
@@ -109,5 +168,28 @@
         <article><h2>Content section 03</h2><p>The end of the test fixture.</p></article>
       </section>
     </main>
+
+    <div class="drawer-backdrop" hidden></div>
+    <section class="test-drawer" role="dialog" aria-modal="true" aria-label="Scrollable capture fixture" hidden>
+      <header class="drawer-header">
+        <strong>Open transaction drawer</strong>
+        <span>Press F to capture all drawer sections.</span>
+      </header>
+      <div class="drawer-body" id="scrolling-drawer-body">
+        <article class="drawer-section"><h2>Drawer section 01</h2><p>This section begins inside the viewport.</p></article>
+        <article class="drawer-section"><h2>Drawer section 02</h2><p>This section is initially hidden below the drawer fold.</p></article>
+        <article class="drawer-section"><h2>Drawer section 03</h2><p>The full-window capture must include this final section.</p></article>
+      </div>
+    </section>
+    <script>
+      const openDrawer = document.querySelector(".open-drawer");
+      const drawer = document.querySelector(".test-drawer");
+      const backdrop = document.querySelector(".drawer-backdrop");
+      openDrawer.addEventListener("click", () => {
+        drawer.hidden = false;
+        backdrop.hidden = false;
+        drawer.classList.add("drawer-on");
+      });
+    </script>
   </body>
 </html>

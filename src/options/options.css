@@ -32,14 +32,15 @@ body {
 }
 
 button,
-input {
+input,
+output {
   font: inherit;
 }
 
 .shell {
   width: min(820px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 48px 0;
+  padding: 32px 0;
 }
 
 .masthead {
@@ -47,7 +48,7 @@ input {
   grid-template-columns: 74px 1fr;
   gap: 24px;
   align-items: start;
-  margin-bottom: 26px;
+  margin-bottom: 18px;
 }
 
 .brand-mark {
@@ -102,7 +103,7 @@ h1 {
   max-width: 650px;
   margin: 0;
   font-family: Rockwell, "Roboto Slab", serif;
-  font-size: clamp(34px, 5.4vw, 54px);
+  font-size: clamp(34px, 5vw, 48px);
   font-weight: 700;
   line-height: 0.98;
   letter-spacing: -0.045em;
@@ -110,7 +111,7 @@ h1 {
 
 .intro {
   max-width: 560px;
-  margin: 14px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
   font-size: 17px;
   line-height: 1.55;
@@ -126,9 +127,9 @@ h1 {
 
 fieldset {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   margin: 0;
-  padding: 24px 30px;
+  padding: 20px 30px;
   border: 0;
 }
 
@@ -155,7 +156,7 @@ legend {
   grid-template-columns: 42px 1fr 22px;
   gap: 14px;
   align-items: center;
-  min-height: 76px;
+  min-height: 70px;
   padding: 12px 17px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -230,7 +231,7 @@ legend {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px 24px;
-  padding: 22px 30px 24px;
+  padding: 16px 30px 18px;
   border-top: 1px solid #e3eceb;
 }
 
@@ -263,11 +264,75 @@ legend {
   accent-color: var(--aqua-deep);
 }
 
+.command-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  padding: 16px 30px;
+  border-top: 1px solid #e3eceb;
+}
+
+.command-copy {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.command-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  color: var(--aqua-deep);
+  background: var(--aqua-soft);
+  border: 1px solid #b9d5d4;
+  border-radius: 11px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.command-field h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.command-field p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.command-control {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+#command-shortcut {
+  min-width: 92px;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #bfcfcd;
+  border-bottom-width: 3px;
+  border-radius: 9px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .form-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 72px;
+  min-height: 64px;
   padding: 14px 30px;
   background: #e9f1ef;
 }
@@ -304,6 +369,22 @@ button:active {
 button:focus-visible {
   outline: 3px solid rgba(20, 184, 200, 0.4);
   outline-offset: 3px;
+}
+
+.secondary-button {
+  padding: 10px 13px;
+  color: var(--aqua-deep);
+  background: var(--aqua-soft);
+  border: 1px solid #b9d5d4;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.secondary-button:hover,
+.secondary-button:active {
+  transform: none;
+  background: #cef0f0;
+  box-shadow: none;
 }
 
 .shortcut-strip {
@@ -360,8 +441,22 @@ kbd {
   }
 
   fieldset,
-  .padding-field {
+  .padding-field,
+  .command-field {
     padding: 22px 18px;
+  }
+
+  .command-field,
+  .command-control {
+    align-items: stretch;
+  }
+
+  .command-field {
+    flex-direction: column;
+  }
+
+  .command-control {
+    justify-content: space-between;
   }
 
   .choice {

@@ -11,6 +11,7 @@
     selected: null,
     mode: "element",
     restoreEntries: [],
+    restoreScrollEntries: [],
     lastPointerTarget: null,
   };
 
@@ -83,7 +84,7 @@
     document.addEventListener("pointermove", onPointerMove, true);
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("click", blockClick, true);
-    document.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keydown", onKeyDown, true);
   }
 
   function stop() {
@@ -96,7 +97,7 @@
     document.removeEventListener("pointermove", onPointerMove, true);
     document.removeEventListener("pointerdown", onPointerDown, true);
     document.removeEventListener("click", blockClick, true);
-    document.removeEventListener("keydown", onKeyDown, true);
+    window.removeEventListener("keydown", onKeyDown, true);
   }
 
   function onPointerMove(event) {
@@ -164,8 +165,9 @@
 
     if (event.key.toLowerCase() === "f") {
       event.preventDefault();
-      state.selected = document.documentElement;
-      state.mode = "page";
+      const surface = findActiveCaptureSurface();
+      state.selected = surface || document.documentElement;
+      state.mode = surface ? "surface" : "page";
       beginCapture();
       return;
     }
@@ -234,6 +236,10 @@
       throw new Error("The selected element changed before it could be captured.");
     }
 
+    if (mode === "surface") {
+      return prepareSurfaceCapture(element);
+    }
+
     expandScrollableElement(element);
     revealClippedAncestors(element);
     await waitForPaint();
@@ -253,6 +259,107 @@
       width: right - left,
       height: bottom - top,
     });
+  }
+
+  async function prepareSurfaceCapture(surface) {
+    const initialRect = surface.getBoundingClientRect();
+    const scrollRegion = findPrimaryScrollRegion(surface);
+
+    if (scrollRegion) {
+      rememberScrollPosition(scrollRegion);
+      scrollRegion.scrollTop = 0;
+      scrollRegion.scrollLeft = 0;
+      expandSurfaceScrollRegion(scrollRegion, surface);
+    }
+
+    expandSurfaceRoot(surface, initialRect);
+    await waitForPaint();
+
+    const rect = surface.getBoundingClientRect();
+    const width = Math.max(rect.width, surface.scrollWidth);
+    const height = Math.max(rect.height, surface.scrollHeight);
+
+    return sanitizeClip({
+      x: rect.left + window.scrollX,
+      y: rect.top + window.scrollY,
+      width,
+      height,
+    });
+  }
+
+  function expandSurfaceScrollRegion(scrollRegion, surface) {
+    const height = Math.max(scrollRegion.getBoundingClientRect().height, scrollRegion.scrollHeight);
+    rememberStyles(scrollRegion, [
+      "height",
+      "min-height",
+      "max-height",
+      "overflow",
+      "overflow-y",
+      "contain",
+      "flex",
+      "flex-basis",
+    ]);
+    scrollRegion.style.setProperty("height", `${height}px`, "important");
+    scrollRegion.style.setProperty("min-height", `${height}px`, "important");
+    scrollRegion.style.setProperty("max-height", "none", "important");
+    scrollRegion.style.setProperty("overflow", "visible", "important");
+    scrollRegion.style.setProperty("overflow-y", "visible", "important");
+    scrollRegion.style.setProperty("contain", "none", "important");
+    scrollRegion.style.setProperty("flex", "0 0 auto", "important");
+
+    let ancestor = scrollRegion.parentElement;
+    while (ancestor && ancestor !== surface) {
+      rememberStyles(ancestor, [
+        "height",
+        "min-height",
+        "max-height",
+        "overflow",
+        "overflow-y",
+        "contain",
+      ]);
+      ancestor.style.setProperty("height", "auto", "important");
+      ancestor.style.setProperty("max-height", "none", "important");
+      ancestor.style.setProperty("overflow", "visible", "important");
+      ancestor.style.setProperty("overflow-y", "visible", "important");
+      ancestor.style.setProperty("contain", "none", "important");
+      ancestor = ancestor.parentElement;
+    }
+  }
+
+  function expandSurfaceRoot(surface, initialRect) {
+    const captureTop = Math.max(0, initialRect.top + window.scrollY);
+    const captureLeft = Math.max(0, initialRect.left + window.scrollX);
+    rememberStyles(surface, [
+      "position",
+      "top",
+      "right",
+      "bottom",
+      "left",
+      "width",
+      "height",
+      "min-height",
+      "max-height",
+      "overflow",
+      "overflow-x",
+      "overflow-y",
+      "contain",
+      "transform",
+      "transition",
+    ]);
+
+    surface.style.setProperty("position", "absolute", "important");
+    surface.style.setProperty("top", `${captureTop}px`, "important");
+    surface.style.setProperty("right", "auto", "important");
+    surface.style.setProperty("bottom", "auto", "important");
+    surface.style.setProperty("left", `${captureLeft}px`, "important");
+    surface.style.setProperty("width", `${initialRect.width}px`, "important");
+    surface.style.setProperty("height", "auto", "important");
+    surface.style.setProperty("min-height", `${initialRect.height}px`, "important");
+    surface.style.setProperty("max-height", "none", "important");
+    surface.style.setProperty("overflow", "visible", "important");
+    surface.style.setProperty("contain", "none", "important");
+    surface.style.setProperty("transform", "none", "important");
+    surface.style.setProperty("transition", "none", "important");
   }
 
   function expandScrollableElement(element) {
@@ -304,6 +411,17 @@
     state.restoreEntries.push({ element, values });
   }
 
+  function rememberScrollPosition(element) {
+    if (state.restoreScrollEntries.some((entry) => entry.element === element)) {
+      return;
+    }
+    state.restoreScrollEntries.push({
+      element,
+      scrollTop: element.scrollTop,
+      scrollLeft: element.scrollLeft,
+    });
+  }
+
   function restorePage() {
     for (const entry of state.restoreEntries.reverse()) {
       if (!entry.element?.isConnected) {
@@ -318,6 +436,13 @@
       }
     }
     state.restoreEntries = [];
+    for (const entry of state.restoreScrollEntries) {
+      if (entry.element?.isConnected) {
+        entry.element.scrollTop = entry.scrollTop;
+        entry.element.scrollLeft = entry.scrollLeft;
+      }
+    }
+    state.restoreScrollEntries = [];
     showExtensionUi();
   }
 
@@ -350,6 +475,126 @@
     const horizontal = element.scrollWidth > element.clientWidth + 1
       && /(auto|scroll|overlay|hidden)/.test(style.overflowX);
     return vertical || horizontal;
+  }
+
+  function findActiveCaptureSurface() {
+    const selector = [
+      "dialog[open]",
+      "[aria-modal='true']",
+      "[role='dialog']",
+      "[data-state='open']",
+      "[data-open='true']",
+      "[class*='modal']",
+      "[class*='drawer']",
+      "[class*='sheet']",
+    ].join(",");
+    const candidates = new Set();
+
+    for (const element of document.querySelectorAll(selector)) {
+      if (!(element instanceof HTMLElement) || !isActiveSurfaceElement(element)) {
+        continue;
+      }
+      candidates.add(getSurfaceRoot(element));
+    }
+
+    return [...candidates]
+      .map((element) => ({ element, score: scoreCaptureSurface(element) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score)[0]?.element || null;
+  }
+
+  function isActiveSurfaceElement(element) {
+    if (!isVisible(element)) {
+      return false;
+    }
+
+    if (element.matches("dialog[open], [aria-modal='true'], [data-state='open'], [data-open='true']")) {
+      return true;
+    }
+
+    const signals = `${element.id} ${element.className}`.toLowerCase();
+    return element.getAttribute("role") === "dialog"
+      || /(?:^|[\s_-])(open|opened|show|shown|active|visible|drawer-on)(?:$|[\s_-])/.test(signals);
+  }
+
+  function getSurfaceRoot(element) {
+    if (element.matches("dialog, [role='dialog'], [aria-modal='true']")) {
+      return element;
+    }
+
+    let root = element;
+    let ancestor = element.parentElement;
+
+    while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
+      const style = getComputedStyle(ancestor);
+      const rect = ancestor.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      const containsRoot = rect.left <= rootRect.left + 2
+        && rect.top <= rootRect.top + 2
+        && rect.right >= rootRect.right - 2
+        && rect.bottom >= rootRect.bottom - 2;
+
+      if (containsRoot && ["fixed", "sticky"].includes(style.position)) {
+        root = ancestor;
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    return root;
+  }
+
+  function scoreCaptureSurface(element) {
+    if (!isVisible(element) || element === document.body || element === document.documentElement) {
+      return 0;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+    const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+    const visibleArea = visibleWidth * visibleHeight;
+    const viewportArea = window.innerWidth * window.innerHeight;
+    if (visibleArea < viewportArea * 0.12) {
+      return 0;
+    }
+
+    const scrollRegion = findPrimaryScrollRegion(element);
+    if (!scrollRegion) {
+      return 0;
+    }
+
+    const style = getComputedStyle(element);
+    const zIndex = Number.parseInt(style.zIndex, 10) || 0;
+    const hiddenHeight = Math.max(0, scrollRegion.scrollHeight - scrollRegion.clientHeight);
+    const semantics = element.matches("dialog, [role='dialog'], [aria-modal='true']") ? viewportArea : 0;
+    return visibleArea + hiddenHeight * Math.max(1, scrollRegion.clientWidth) + semantics + zIndex * 100;
+  }
+
+  function findPrimaryScrollRegion(surface) {
+    const regions = [surface, ...surface.querySelectorAll("*")]
+      .filter((element) => element instanceof HTMLElement && isScrollable(element));
+
+    return regions.sort((a, b) => scoreScrollRegion(b) - scoreScrollRegion(a))[0] || null;
+  }
+
+  function scoreScrollRegion(element) {
+    const rect = element.getBoundingClientRect();
+    const hiddenHeight = Math.max(0, element.scrollHeight - element.clientHeight);
+    const hiddenWidth = Math.max(0, element.scrollWidth - element.clientWidth);
+    return hiddenHeight * Math.max(1, rect.width) + hiddenWidth * Math.max(1, rect.height);
+  }
+
+  function isVisible(element) {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none"
+      && style.visibility !== "hidden"
+      && Number.parseFloat(style.opacity || "1") > 0
+      && rect.width > 1
+      && rect.height > 1
+      && rect.bottom > 0
+      && rect.right > 0
+      && rect.top < window.innerHeight
+      && rect.left < window.innerWidth;
   }
 
   function describeElement(element) {
@@ -617,7 +862,7 @@
     help.innerHTML = `
       <span class="mark" aria-hidden="true">⌖</span>
       <span>Click to capture</span>
-      <kbd>F</kbd><span>Full page</span>
+      <kbd>F</kbd><span>Full page / window</span>
       <kbd>↑</kbd><span>Parent element</span>
       <kbd>Esc</kbd>
     `;

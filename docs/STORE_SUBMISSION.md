@@ -8,7 +8,7 @@ This guide covers **Private** distribution to users in the same Google Workspace
 npm run package
 ```
 
-Output: `dist/bigshoot-1.0.1.zip`.
+Output: `dist/bigshoot-1.0.2.zip`.
 
 Before publishing each new release, update all of the following:
 
@@ -41,7 +41,7 @@ The developer account may require the Chrome Web Store's one-time registration f
 
 **Detailed description**
 
-> Bigshoot brings Chrome DevTools' Capture node screenshot workflow to the browser toolbar. Click the icon, point to an element, and click again to create a PNG. Bigshoot can expand an independently scrollable region, such as a sidebar, to include hidden content, or capture the entire page with the F key. Screenshots are saved to the device or copied to the clipboard according to the user's setting. No data is sent to a server.
+> Bigshoot brings Chrome DevTools' Capture node screenshot workflow to the browser toolbar. Click the icon, point to an element, and click again to create a PNG. Bigshoot can expand an independently scrollable region, such as a sidebar, to include hidden content. Press F to capture the full page or the complete contents of an open modal, drawer, or dialog. Open Bigshoot with Command+Shift+6 on macOS or customize the shortcut in Chrome. Screenshots are saved to the device or copied to the clipboard according to the user's setting. No data is sent to a server.
 
 **Suggested category**
 
