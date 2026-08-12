@@ -1,5 +1,7 @@
 (() => {
   const GLOBAL_KEY = "__bigshootPicker";
+  const MAX_CAPTURE_FRAMES = 200;
+  const VIEWPORT_TOLERANCE = 1;
 
   if (window[GLOBAL_KEY]) {
     return;
@@ -10,14 +12,11 @@
     candidate: null,
     selected: null,
     mode: "element",
-    restoreEntries: [],
-    restoreScrollEntries: [],
-    lastPointerTarget: null,
+    capture: null,
   };
 
   const ui = createUi();
-  const api = { start, stop };
-  window[GLOBAL_KEY] = api;
+  window[GLOBAL_KEY] = { start, stop };
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "BIGSHOOT_START_PICKER") {
@@ -28,8 +27,27 @@
 
     if (message?.type === "BIGSHOOT_PREPARE_CAPTURE") {
       prepareCapture(message.mode, message.padding)
-        .then((clip) => sendResponse({ ok: true, clip }))
-        .catch((error) => sendResponse({ ok: false, error: error.message }));
+        .then((plan) => sendResponse({ ok: true, ...plan }))
+        .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
+      return true;
+    }
+
+    if (message?.type === "BIGSHOOT_ADVANCE_CAPTURE") {
+      advanceCapture(message.sessionId, message.frameIndex)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
+      return true;
+    }
+
+    if (message?.type === "BIGSHOOT_READ_CAPTURE_FRAME") {
+      readCaptureFrame(
+        message.sessionId,
+        message.frameIndex,
+        message.bitmapWidth,
+        message.bitmapHeight,
+      )
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
       return true;
     }
 
@@ -42,7 +60,7 @@
     if (message?.type === "BIGSHOOT_COPY_IMAGE") {
       copyImageToClipboard(message.dataUrl)
         .then(() => sendResponse({ ok: true }))
-        .catch((error) => sendResponse({ ok: false, error: error.message }));
+        .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
       return true;
     }
 
@@ -109,8 +127,6 @@
     if (!target || target === state.candidate) {
       return;
     }
-
-    state.lastPointerTarget = target;
     setCandidate(target);
   }
 
@@ -123,7 +139,7 @@
     event.stopImmediatePropagation();
     suppressNextClick();
 
-    const target = getSelectableTarget(event) || state.candidate;
+    const target = state.candidate || getSelectableTarget(event);
     if (!target) {
       return;
     }
@@ -180,12 +196,12 @@
 
   function beginCapture() {
     stop();
-    showToast("Capturing...", "working", 12000);
+    showToast("Capturing...", "working", 30000);
     chrome.runtime.sendMessage({
       type: "BIGSHOOT_CAPTURE_SELECTION",
       mode: state.mode,
     }).catch((error) => {
-      showToast(error.message || "The capture could not be started", "error");
+      showToast(normalizeError(error), "error");
     });
   }
 
@@ -218,26 +234,21 @@
   }
 
   async function prepareCapture(mode, paddingInput) {
-    if (!state.selected && mode !== "page") {
-      throw new Error("The selected element no longer exists.");
-    }
-
+    restorePage();
     hideExtensionUi();
     const padding = clamp(Number(paddingInput) || 0, 0, 64);
 
     if (mode === "page") {
-      const surface = findActiveCaptureSurface();
-      if (surface) {
-        return prepareSurfaceCapture(surface);
-      }
-      expandDocumentScrollRegions();
       await waitForPaint();
       const size = getDocumentSize();
-      return sanitizeClip({ x: 0, y: 0, width: size.width, height: size.height });
+      return {
+        kind: "cdp",
+        clip: sanitizeDocumentClip({ x: 0, y: 0, width: size.width, height: size.height }),
+      };
     }
 
     const element = state.selected;
-    if (!element.isConnected) {
+    if (!(element instanceof HTMLElement) || !element.isConnected) {
       throw new Error("The selected element changed before it could be captured.");
     }
 
@@ -245,14 +256,11 @@
       return prepareSurfaceCapture(element);
     }
 
-    const activeSurface = findActiveCaptureSurface();
-    if (activeSurface?.contains(element)) {
-      expandElementInsideSurface(element, activeSurface);
-    } else {
-      expandCaptureTree(element);
+    if (isSelfScrollable(element)) {
+      return prepareScrollableElementCapture(element, padding);
     }
-    await waitForPaint();
 
+    await waitForPaint();
     const rect = element.getBoundingClientRect();
     const pageX = window.scrollX;
     const pageY = window.scrollY;
@@ -262,347 +270,595 @@
     const right = clamp(rect.right + pageX + padding, left + 1, documentSize.width);
     const bottom = clamp(rect.bottom + pageY + padding, top + 1, documentSize.height);
 
-    return sanitizeClip({
-      x: left,
-      y: top,
-      width: right - left,
-      height: bottom - top,
-    });
+    return {
+      kind: "cdp",
+      clip: sanitizeDocumentClip({
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+      }),
+    };
+  }
+
+  async function prepareScrollableElementCapture(element, padding) {
+    const initialRect = toPlainRect(element.getBoundingClientRect());
+    assertPaddedRectFullyVisible(initialRect, padding, "scrollable element");
+    const originalScrollTop = element.scrollTop;
+    const originalScrollLeft = element.scrollLeft;
+    const originalScrollBehavior = element.style.getPropertyValue("scroll-behavior");
+    const originalScrollBehaviorPriority = element.style.getPropertyPriority("scroll-behavior");
+    const originalScrollSnapType = element.style.getPropertyValue("scroll-snap-type");
+    const originalScrollSnapTypePriority = element.style.getPropertyPriority("scroll-snap-type");
+    state.capture = {
+      kind: "scroll-element",
+      sessionId: createSessionId(),
+      target: element,
+      originalScrollTop,
+      originalScrollLeft,
+      originalScrollBehavior,
+      originalScrollBehaviorPriority,
+      originalScrollSnapType,
+      originalScrollSnapTypePriority,
+      frameIndex: 0,
+      capturedCssHeight: 0,
+      padding,
+      geometry: null,
+      borderInsets: null,
+      repeatingEntries: [],
+      knownScrollHeight: element.scrollHeight,
+    };
+
+    element.style.setProperty("scroll-behavior", "auto", "important");
+    element.style.setProperty("scroll-snap-type", "none", "important");
+    element.scrollTop = 0;
+    element.scrollLeft = 0;
+    hideScrollbars();
+    hideOverlappingFixedElements(element);
+    await waitForPaint();
+
+    const geometry = readInnerGeometry(element);
+    const borderRect = toPlainRect(element.getBoundingClientRect());
+    assertPaddedRectFullyVisible(borderRect, padding, "scrollable element");
+    state.capture.geometry = geometry;
+    state.capture.borderInsets = {
+      left: geometry.rect.left - borderRect.left,
+      top: geometry.rect.top - borderRect.top,
+      right: borderRect.right - geometry.rect.right,
+      bottom: borderRect.bottom - geometry.rect.bottom,
+    };
+    state.capture.repeatingEntries = collectRepeatingEntries(element, geometry);
+
+    return {
+      kind: "stitched",
+      sessionId: state.capture.sessionId,
+    };
   }
 
   async function prepareSurfaceCapture(surface) {
-    const initialRect = surface.getBoundingClientRect();
     const scrollRegion = findPrimaryScrollRegion(surface);
-
-    if (scrollRegion) {
-      rememberScrollPosition(scrollRegion);
-      scrollRegion.scrollTop = 0;
-      scrollRegion.scrollLeft = 0;
-      expandSurfaceScrollRegion(scrollRegion, surface);
+    if (!scrollRegion) {
+      await waitForPaint();
+      const rect = surface.getBoundingClientRect();
+      return {
+        kind: "cdp",
+        clip: sanitizeDocumentClip({
+          x: rect.left + window.scrollX,
+          y: rect.top + window.scrollY,
+          width: rect.width,
+          height: rect.height,
+        }),
+      };
     }
 
-    expandSurfaceRoot(surface, initialRect);
-    neutralizeStickyDescendants(surface);
+    assertFullyVisible(surface.getBoundingClientRect(), "open window");
+    const originalScrollTop = scrollRegion.scrollTop;
+    const originalScrollLeft = scrollRegion.scrollLeft;
+    const originalScrollBehavior = scrollRegion.style.getPropertyValue("scroll-behavior");
+    const originalScrollBehaviorPriority = scrollRegion.style.getPropertyPriority("scroll-behavior");
+    const originalScrollSnapType = scrollRegion.style.getPropertyValue("scroll-snap-type");
+    const originalScrollSnapTypePriority = scrollRegion.style.getPropertyPriority("scroll-snap-type");
+    state.capture = {
+      kind: "surface",
+      sessionId: createSessionId(),
+      target: surface,
+      scrollTarget: scrollRegion,
+      originalScrollTop,
+      originalScrollLeft,
+      originalScrollBehavior,
+      originalScrollBehaviorPriority,
+      originalScrollSnapType,
+      originalScrollSnapTypePriority,
+      frameIndex: 0,
+      capturedCssHeight: 0,
+      surfaceRect: null,
+      scrollGeometry: null,
+      scrollVisualScale: 1,
+      repeatingEntries: [],
+      surfaceStaticEntries: [],
+      surfaceStaticHidden: false,
+      headerHeight: 0,
+      footerHeight: 0,
+      knownScrollHeight: scrollRegion.scrollHeight,
+    };
+
+    scrollRegion.style.setProperty("scroll-behavior", "auto", "important");
+    scrollRegion.style.setProperty("scroll-snap-type", "none", "important");
+    scrollRegion.scrollTop = 0;
+    scrollRegion.scrollLeft = 0;
+    hideScrollbars();
+    hideOverlappingFixedElements(surface);
     await waitForPaint();
 
-    const rect = surface.getBoundingClientRect();
-    const width = Math.max(rect.width, surface.scrollWidth);
-    const height = Math.max(rect.height, surface.scrollHeight);
+    const surfaceRect = toPlainRect(surface.getBoundingClientRect());
+    const scrollGeometry = readInnerGeometry(scrollRegion);
+    const scrollBorderRect = toPlainRect(scrollRegion.getBoundingClientRect());
+    assertFullyVisible(surfaceRect, "open window");
+    assertFullyVisible(scrollGeometry.rect, "open window content");
+    if (
+      scrollGeometry.rect.left < surfaceRect.left - VIEWPORT_TOLERANCE
+      || scrollGeometry.rect.right > surfaceRect.right + VIEWPORT_TOLERANCE
+      || scrollGeometry.rect.top < surfaceRect.top - VIEWPORT_TOLERANCE
+      || scrollGeometry.rect.bottom > surfaceRect.bottom + VIEWPORT_TOLERANCE
+    ) {
+      throw new Error("The open window's scroll region is outside its visible bounds.");
+    }
 
-    return sanitizeClip({
-      x: rect.left + window.scrollX,
-      y: rect.top + window.scrollY,
-      width,
-      height,
-    });
+    state.capture.surfaceRect = surfaceRect;
+    state.capture.scrollGeometry = scrollGeometry;
+    state.capture.scrollVisualScale = scrollGeometry.scaleY;
+    state.capture.repeatingEntries = collectRepeatingEntries(scrollRegion, scrollGeometry);
+    state.capture.surfaceStaticEntries = collectSurfaceStaticEntries(
+      surface,
+      scrollRegion,
+      scrollGeometry.rect,
+    );
+    state.capture.headerHeight = Math.max(0, scrollBorderRect.top - surfaceRect.top);
+    state.capture.footerHeight = Math.max(0, surfaceRect.bottom - scrollBorderRect.bottom);
+
+    return {
+      kind: "stitched",
+      sessionId: state.capture.sessionId,
+    };
   }
 
-  function expandElementInsideSurface(element, surface) {
-    const initialRect = surface.getBoundingClientRect();
-    const scrollRegion = findPrimaryScrollRegion(surface);
+  async function advanceCapture(sessionId, frameIndex) {
+    const capture = requireCaptureSession(sessionId, frameIndex - 1);
+    if (frameIndex >= MAX_CAPTURE_FRAMES) {
+      throw new Error(`The capture exceeded the ${MAX_CAPTURE_FRAMES}-frame safety limit.`);
+    }
 
-    if (scrollRegion) {
-      rememberScrollPosition(scrollRegion);
-      scrollRegion.scrollTop = 0;
-      scrollRegion.scrollLeft = 0;
-      expandSurfaceScrollRegion(scrollRegion, surface);
+    const scrollTarget = capture.kind === "surface" ? capture.scrollTarget : capture.target;
+    if (!(scrollTarget instanceof HTMLElement) || !scrollTarget.isConnected) {
+      throw new Error("The scrollable region changed during capture.");
+    }
+
+    capture.knownScrollHeight = Math.max(capture.knownScrollHeight, scrollTarget.scrollHeight);
+    const maxScrollTop = Math.max(0, capture.knownScrollHeight - scrollTarget.clientHeight);
+    const nextScrollTop = Math.min(
+      maxScrollTop,
+      capture.capturedCssHeight,
+    );
+    const previousScrollTop = scrollTarget.scrollTop;
+    scrollTarget.scrollTop = nextScrollTop;
+    await waitForPaint();
+
+    const staticSurfaceChanged = capture.kind === "surface"
+      && frameIndex === 1
+      && hideSurfaceStaticEntries(capture);
+    if (hidePreviouslyCapturedRepeatingElements(capture) || staticSurfaceChanged) {
+      await waitForPaint();
+    }
+
+    capture.knownScrollHeight = Math.max(capture.knownScrollHeight, scrollTarget.scrollHeight);
+    capture.frameIndex = frameIndex;
+    if (
+      scrollTarget.scrollTop <= previousScrollTop + VIEWPORT_TOLERANCE
+      && capture.capturedCssHeight < capture.knownScrollHeight - VIEWPORT_TOLERANCE
+    ) {
+      throw new Error("The scrollable region did not reveal new content.");
+    }
+    return { scrollTop: scrollTarget.scrollTop };
+  }
+
+  async function readCaptureFrame(sessionId, frameIndex, bitmapWidth, bitmapHeight) {
+    const capture = requireCaptureSession(sessionId, frameIndex);
+    const dimensions = validateBitmapDimensions(bitmapWidth, bitmapHeight);
+    const scale = readBitmapScale(dimensions);
+
+    if (capture.kind === "scroll-element") {
+      return { ...readScrollableElementFrame(capture, scale, dimensions), scale: scale.y };
+    }
+    if (capture.kind === "surface") {
+      return { ...readSurfaceFrame(capture, scale, dimensions), scale: scale.y };
+    }
+    throw new Error("The active capture session is invalid.");
+  }
+
+  function readScrollableElementFrame(capture, scale, dimensions) {
+    const element = capture.target;
+    const currentGeometry = readInnerGeometry(element);
+    const lockedRect = lockRectSize(currentGeometry.rect, capture.geometry.rect);
+    assertFullyVisible(lockedRect, "scrollable element");
+
+    capture.knownScrollHeight = Math.max(capture.knownScrollHeight, element.scrollHeight);
+    const visibleEnd = Math.min(
+      capture.knownScrollHeight,
+      element.scrollTop + element.clientHeight,
+    );
+    const newCssHeight = Math.max(0, visibleEnd - capture.capturedCssHeight);
+    if (newCssHeight <= VIEWPORT_TOLERANCE) {
+      throw new Error("The screenshot frame did not contain new element content.");
+    }
+
+    const cropCssHeight = Math.min(element.clientHeight, newCssHeight) * capture.geometry.scaleY;
+    const borderLeft = capture.borderInsets.left;
+    const borderTop = capture.borderInsets.top;
+    const borderRight = capture.borderInsets.right;
+    const borderBottom = capture.borderInsets.bottom;
+    const leftPadding = capture.padding;
+    const rightPadding = capture.padding;
+    const topPadding = capture.frameIndex === 0 ? capture.padding : 0;
+    const bottomPadding = visibleEnd >= capture.knownScrollHeight - VIEWPORT_TOLERANCE
+      ? capture.padding
+      : 0;
+    const left = lockedRect.left - borderLeft - leftPadding;
+    const right = lockedRect.right + borderRight + rightPadding;
+    const topBorder = capture.frameIndex === 0 ? borderTop : 0;
+    const bottomBorder = visibleEnd >= capture.knownScrollHeight - VIEWPORT_TOLERANCE
+      ? borderBottom
+      : 0;
+    const sliceRect = {
+      left,
+      top: lockedRect.bottom - cropCssHeight - topBorder - topPadding,
+      right,
+      bottom: lockedRect.bottom + bottomBorder + bottomPadding,
+      width: right - left,
+      height: cropCssHeight + topBorder + bottomBorder + topPadding + bottomPadding,
+    };
+    const crop = cssRectToBitmapRect(sliceRect, scale, dimensions);
+    capture.capturedCssHeight = visibleEnd;
+    const done = visibleEnd >= capture.knownScrollHeight - VIEWPORT_TOLERANCE;
+    return {
+      crop,
+      outputHeight: Math.round(
+        (
+          capture.knownScrollHeight * capture.geometry.scaleY
+          + borderTop
+          + borderBottom
+          + capture.padding * 2
+        ) * scale.y,
+      ),
+      done,
+    };
+  }
+
+  function readSurfaceFrame(capture, scale, dimensions) {
+    const surfaceRect = lockRectSize(
+      toPlainRect(capture.target.getBoundingClientRect()),
+      capture.surfaceRect,
+    );
+    const currentScrollGeometry = readInnerGeometry(capture.scrollTarget);
+    const scrollRect = lockRectSize(currentScrollGeometry.rect, capture.scrollGeometry.rect);
+    assertFullyVisible(surfaceRect, "open window");
+    assertFullyVisible(scrollRect, "open window content");
+
+    capture.knownScrollHeight = Math.max(capture.knownScrollHeight, capture.scrollTarget.scrollHeight);
+    const visibleEnd = Math.min(
+      capture.knownScrollHeight,
+      capture.scrollTarget.scrollTop + capture.scrollTarget.clientHeight,
+    );
+    const newCssHeight = Math.max(0, visibleEnd - capture.capturedCssHeight);
+    if (newCssHeight <= VIEWPORT_TOLERANCE) {
+      throw new Error("The screenshot frame did not contain new window content.");
+    }
+
+    let sliceRect;
+    if (capture.frameIndex === 0) {
+      sliceRect = {
+        left: surfaceRect.left,
+        top: surfaceRect.top,
+        right: surfaceRect.right,
+        bottom: scrollRect.bottom,
+        width: surfaceRect.width,
+        height: scrollRect.bottom - surfaceRect.top,
+      };
     } else {
-      expandCaptureTree(element);
+      const cropCssHeight = Math.min(capture.scrollTarget.clientHeight, newCssHeight)
+        * capture.scrollVisualScale;
+      sliceRect = {
+        left: surfaceRect.left,
+        top: scrollRect.bottom - cropCssHeight,
+        right: surfaceRect.right,
+        bottom: scrollRect.bottom,
+        width: surfaceRect.width,
+        height: cropCssHeight,
+      };
     }
 
-    expandSurfaceRoot(surface, initialRect);
-    neutralizeStickyDescendants(surface);
-  }
-
-  function expandSurfaceScrollRegion(scrollRegion, surface) {
-    const height = Math.max(scrollRegion.getBoundingClientRect().height, scrollRegion.scrollHeight);
-    rememberStyles(scrollRegion, [
-      "height",
-      "min-height",
-      "max-height",
-      "overflow",
-      "overflow-y",
-      "contain",
-      "flex",
-      "flex-basis",
-    ]);
-    scrollRegion.style.setProperty("height", `${height}px`, "important");
-    scrollRegion.style.setProperty("min-height", `${height}px`, "important");
-    scrollRegion.style.setProperty("max-height", "none", "important");
-    scrollRegion.style.setProperty("overflow", "visible", "important");
-    scrollRegion.style.setProperty("overflow-y", "visible", "important");
-    scrollRegion.style.setProperty("contain", "none", "important");
-    scrollRegion.style.setProperty("flex", "0 0 auto", "important");
-
-    let ancestor = scrollRegion.parentElement;
-    while (ancestor && ancestor !== surface) {
-      rememberStyles(ancestor, [
-        "flex",
-        "flex-basis",
-        "height",
-        "min-height",
-        "max-height",
-        "overflow",
-        "overflow-y",
-        "contain",
-      ]);
-      ancestor.style.setProperty("flex", "0 0 auto", "important");
-      ancestor.style.setProperty("height", "auto", "important");
-      ancestor.style.setProperty("min-height", "0", "important");
-      ancestor.style.setProperty("max-height", "none", "important");
-      ancestor.style.setProperty("overflow", "visible", "important");
-      ancestor.style.setProperty("overflow-y", "visible", "important");
-      ancestor.style.setProperty("contain", "none", "important");
-      ancestor = ancestor.parentElement;
+    const done = visibleEnd >= capture.knownScrollHeight - VIEWPORT_TOLERANCE;
+    if (done && capture.footerHeight > 0) {
+      sliceRect.bottom = surfaceRect.bottom;
+      sliceRect.height = sliceRect.bottom - sliceRect.top;
     }
+
+    const crop = cssRectToBitmapRect(sliceRect, scale, dimensions);
+    capture.capturedCssHeight = visibleEnd;
+    return {
+      crop,
+      outputHeight: Math.round(
+        (
+          capture.headerHeight
+          + capture.knownScrollHeight * capture.scrollVisualScale
+          + capture.footerHeight
+        ) * scale.y,
+      ),
+      done,
+    };
   }
 
-  function neutralizeStickyDescendants(root) {
-    for (const element of root.querySelectorAll("*")) {
-      if (!(element instanceof HTMLElement) || getComputedStyle(element).position !== "sticky") {
+  function requireCaptureSession(sessionId, frameIndex) {
+    const capture = state.capture;
+    if (!capture || capture.sessionId !== sessionId) {
+      throw new Error("The capture session expired. Please select the element again.");
+    }
+    if (capture.frameIndex !== frameIndex) {
+      throw new Error("The screenshot frames arrived out of order.");
+    }
+    return capture;
+  }
+
+  function readBitmapScale(dimensions) {
+    if (window.innerWidth <= 0 || window.innerHeight <= 0) {
+      throw new Error("The browser viewport is unavailable.");
+    }
+    return {
+      x: dimensions.width / window.innerWidth,
+      y: dimensions.height / window.innerHeight,
+    };
+  }
+
+  function cssRectToBitmapRect(rect, scale, dimensions) {
+    const viewport = window.visualViewport;
+    const visualScale = viewport?.scale || 1;
+    const offsetLeft = viewport?.offsetLeft || 0;
+    const offsetTop = viewport?.offsetTop || 0;
+    const left = (rect.left - offsetLeft) * visualScale * scale.x;
+    const top = (rect.top - offsetTop) * visualScale * scale.y;
+    const right = (rect.right - offsetLeft) * visualScale * scale.x;
+    const bottom = (rect.bottom - offsetTop) * visualScale * scale.y;
+    const x = clamp(Math.round(left), 0, dimensions.width - 1);
+    const y = clamp(Math.round(top), 0, dimensions.height - 1);
+    const cropRight = clamp(Math.round(right), x + 1, dimensions.width);
+    const cropBottom = clamp(Math.round(bottom), y + 1, dimensions.height);
+    return {
+      x,
+      y,
+      width: cropRight - x,
+      height: cropBottom - y,
+    };
+  }
+
+  function validateBitmapDimensions(widthInput, heightInput) {
+    const width = Math.round(Number(widthInput));
+    const height = Math.round(Number(heightInput));
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
+      throw new Error("Chrome returned invalid screenshot dimensions.");
+    }
+    return { width, height };
+  }
+
+  function hideScrollbars() {
+    const style = document.createElement("style");
+    style.dataset.bigshootTemporary = "scrollbars";
+    style.textContent = `
+      html, body, * { scrollbar-color: transparent transparent !important; }
+      html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar {
+        background: transparent !important;
+      }
+      html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, *::-webkit-scrollbar-thumb,
+      html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, *::-webkit-scrollbar-track {
+        background: transparent !important;
+        border-color: transparent !important;
+      }
+    `;
+    document.documentElement.append(style);
+  }
+
+  function hideOverlappingFixedElements(target) {
+    const targetRect = target.getBoundingClientRect();
+    for (const element of document.querySelectorAll("body *")) {
+      if (!(element instanceof HTMLElement) || element === target) {
         continue;
       }
-      rememberStyles(element, ["position", "top", "right", "bottom", "left"]);
-      element.style.setProperty("position", "static", "important");
-      element.style.setProperty("top", "auto", "important");
-      element.style.setProperty("right", "auto", "important");
-      element.style.setProperty("bottom", "auto", "important");
-      element.style.setProperty("left", "auto", "important");
+      if (target.contains(element) || element.contains(target) || ui.host.contains(element)) {
+        continue;
+      }
+      const style = getComputedStyle(element);
+      if (!['fixed', 'sticky'].includes(style.position)) {
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      if (!rectsOverlap(rect, targetRect) || !isVisible(element)) {
+        continue;
+      }
+      hideElementTemporarily(element);
     }
   }
 
-  function expandSurfaceRoot(surface, initialRect) {
-    const captureTop = Math.max(0, initialRect.top + window.scrollY);
-    const captureLeft = Math.max(0, initialRect.left + window.scrollX);
-    rememberStyles(surface, [
-      "position",
-      "top",
-      "right",
-      "bottom",
-      "left",
-      "width",
-      "height",
-      "min-height",
-      "max-height",
-      "overflow",
-      "overflow-x",
-      "overflow-y",
-      "contain",
-      "transform",
-      "transition",
-    ]);
-
-    surface.style.setProperty("position", "absolute", "important");
-    surface.style.setProperty("top", `${captureTop}px`, "important");
-    surface.style.setProperty("right", "auto", "important");
-    surface.style.setProperty("bottom", "auto", "important");
-    surface.style.setProperty("left", `${captureLeft}px`, "important");
-    surface.style.setProperty("width", `${initialRect.width}px`, "important");
-    surface.style.setProperty("height", "auto", "important");
-    surface.style.setProperty("min-height", `${initialRect.height}px`, "important");
-    surface.style.setProperty("max-height", "none", "important");
-    surface.style.setProperty("overflow", "visible", "important");
-    surface.style.setProperty("contain", "none", "important");
-    surface.style.setProperty("transform", "none", "important");
-    surface.style.setProperty("transition", "none", "important");
+  function collectRepeatingEntries(scrollTarget, geometry) {
+    const entries = [];
+    for (const element of scrollTarget.querySelectorAll("*")) {
+      const position = element instanceof HTMLElement ? getComputedStyle(element).position : "";
+      if (!['fixed', 'sticky'].includes(position)) {
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      entries.push({
+        element,
+        contentOffset: Math.max(
+          0,
+          (rect.top - geometry.rect.top) / Math.max(geometry.scaleY, Number.EPSILON)
+            + scrollTarget.scrollTop,
+        ),
+        value: element.style.getPropertyValue("visibility"),
+        priority: element.style.getPropertyPriority("visibility"),
+        hidden: false,
+      });
+    }
+    return entries;
   }
 
-  function expandScrollableElement(element) {
-    if (!isScrollable(element)) {
+  function collectSurfaceStaticEntries(surface, scrollTarget, scrollRect) {
+    const entries = [];
+    let branch = scrollTarget;
+
+    while (branch && branch !== surface) {
+      const parent = branch.parentElement;
+      if (!parent) {
+        break;
+      }
+      for (const sibling of parent.children) {
+        if (
+          sibling instanceof HTMLElement
+          && sibling !== branch
+          && isVisible(sibling)
+          && rectsOverlapVertically(sibling.getBoundingClientRect(), scrollRect)
+        ) {
+          entries.push(sibling);
+        }
+      }
+      branch = parent;
+    }
+    return entries;
+  }
+
+  function hideSurfaceStaticEntries(capture) {
+    if (capture.surfaceStaticHidden) {
+      return false;
+    }
+    capture.surfaceStaticHidden = true;
+    for (const element of capture.surfaceStaticEntries) {
+      hideElementTemporarily(element);
+    }
+    return capture.surfaceStaticEntries.length > 0;
+  }
+
+  function hidePreviouslyCapturedRepeatingElements(capture) {
+    let changed = false;
+    for (const entry of capture.repeatingEntries || []) {
+      if (
+        entry.hidden
+        || !entry.element.isConnected
+        || entry.contentOffset >= capture.capturedCssHeight - VIEWPORT_TOLERANCE
+      ) {
+        continue;
+      }
+      entry.element.style.setProperty("visibility", "hidden", "important");
+      entry.hidden = true;
+      changed = true;
+    }
+    return changed;
+  }
+
+  function restoreRepeatingEntries(capture) {
+    for (const entry of capture?.repeatingEntries || []) {
+      if (!entry.hidden || !entry.element.isConnected) {
+        continue;
+      }
+      if (entry.value) {
+        entry.element.style.setProperty("visibility", entry.value, entry.priority);
+      } else {
+        entry.element.style.removeProperty("visibility");
+      }
+    }
+  }
+
+  function hideElementTemporarily(element) {
+    if (element.dataset.bigshootTemporaryHidden === "true") {
       return;
     }
-
-    rememberStyles(element, [
-      "height",
-      "width",
-      "max-height",
-      "max-width",
-      "overflow",
-      "overflow-x",
-      "overflow-y",
-      "contain",
-    ]);
-
-    const rect = element.getBoundingClientRect();
-    element.style.setProperty("height", `${Math.max(rect.height, element.scrollHeight)}px`, "important");
-    element.style.setProperty("width", `${Math.max(rect.width, element.scrollWidth)}px`, "important");
-    element.style.setProperty("max-height", "none", "important");
-    element.style.setProperty("max-width", "none", "important");
-    element.style.setProperty("overflow", "visible", "important");
-    element.style.setProperty("contain", "none", "important");
-  }
-
-  function expandCaptureTree(element) {
-    rememberScrollPosition(element);
-    element.scrollTop = 0;
-    element.scrollLeft = 0;
-    expandScrollableElement(element);
-
-    let ancestor = element.parentElement;
-    while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
-      const style = getComputedStyle(ancestor);
-      const clipsVertically = ancestor.scrollHeight > ancestor.clientHeight + 1
-        && /(auto|scroll|overlay|hidden|clip)/.test(style.overflowY);
-      const clipsHorizontally = ancestor.scrollWidth > ancestor.clientWidth + 1
-        && /(auto|scroll|overlay|hidden|clip)/.test(style.overflowX);
-
-      if (clipsVertically || clipsHorizontally) {
-        rememberScrollPosition(ancestor);
-        ancestor.scrollTop = 0;
-        ancestor.scrollLeft = 0;
-        rememberStyles(ancestor, [
-          "flex",
-          "flex-basis",
-          "height",
-          "width",
-          "min-height",
-          "min-width",
-          "max-height",
-          "max-width",
-          "overflow",
-          "overflow-x",
-          "overflow-y",
-          "contain",
-        ]);
-
-        if (clipsVertically) {
-          const height = Math.max(ancestor.getBoundingClientRect().height, ancestor.scrollHeight);
-          ancestor.style.setProperty("height", `${height}px`, "important");
-          ancestor.style.setProperty("min-height", `${height}px`, "important");
-          ancestor.style.setProperty("max-height", "none", "important");
-        }
-        if (clipsHorizontally) {
-          const width = Math.max(ancestor.getBoundingClientRect().width, ancestor.scrollWidth);
-          ancestor.style.setProperty("width", `${width}px`, "important");
-          ancestor.style.setProperty("min-width", `${width}px`, "important");
-          ancestor.style.setProperty("max-width", "none", "important");
-        }
-        ancestor.style.setProperty("flex", "0 0 auto", "important");
-        ancestor.style.setProperty("overflow", "visible", "important");
-        ancestor.style.setProperty("overflow-x", "visible", "important");
-        ancestor.style.setProperty("overflow-y", "visible", "important");
-        ancestor.style.setProperty("contain", "none", "important");
-      }
-      ancestor = ancestor.parentElement;
-    }
-
-    revealClippedAncestors(element);
-    neutralizeStickyDescendants(element);
-  }
-
-  function expandDocumentScrollRegions() {
-    const candidates = [...document.querySelectorAll("body *")]
-      .filter((element) => (
-        element instanceof HTMLElement
-        && isScrollable(element)
-        && isViewportScrollRegion(element)
-      ))
-      .sort((a, b) => scoreScrollRegion(b) - scoreScrollRegion(a));
-
-    for (const element of candidates) {
-      rememberScrollPosition(element);
-      element.scrollTop = 0;
-      element.scrollLeft = 0;
-      expandCaptureTree(element);
-      neutralizeStickyDescendants(element);
-    }
-  }
-
-  function isViewportScrollRegion(element) {
-    const rect = element.getBoundingClientRect();
-    const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
-    const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
-    const visibleArea = visibleWidth * visibleHeight;
-    const hiddenHeight = Math.max(0, element.scrollHeight - element.clientHeight);
-    return hiddenHeight > 1 && visibleArea >= window.innerWidth * window.innerHeight * 0.4;
-  }
-
-  function revealClippedAncestors(element) {
-    let ancestor = element.parentElement;
-    while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
-      const style = getComputedStyle(ancestor);
-      const clips = [style.overflow, style.overflowX, style.overflowY]
-        .some((value) => ["auto", "scroll", "overlay", "hidden", "clip"].includes(value));
-
-      if (clips) {
-        rememberStyles(ancestor, ["overflow", "overflow-x", "overflow-y"]);
-        ancestor.style.setProperty("overflow", "visible", "important");
-      }
-      ancestor = ancestor.parentElement;
-    }
-  }
-
-  function rememberStyles(element, properties) {
-    const values = properties.map((property) => ({
-      property,
-      value: element.style.getPropertyValue(property),
-      priority: element.style.getPropertyPriority(property),
-    }));
-    state.restoreEntries.push({ element, values });
-  }
-
-  function rememberScrollPosition(element) {
-    if (state.restoreScrollEntries.some((entry) => entry.element === element)) {
-      return;
-    }
-    state.restoreScrollEntries.push({
-      element,
-      scrollTop: element.scrollTop,
-      scrollLeft: element.scrollLeft,
-    });
+    element.dataset.bigshootPreviousVisibility = element.style.getPropertyValue("visibility");
+    element.dataset.bigshootPreviousVisibilityPriority = element.style.getPropertyPriority("visibility");
+    element.dataset.bigshootTemporaryHidden = "true";
+    element.style.setProperty("visibility", "hidden", "important");
   }
 
   function restorePage() {
-    for (const entry of state.restoreEntries.reverse()) {
-      if (!entry.element?.isConnected) {
+    const capture = state.capture;
+    if (capture) {
+      const scrollTarget = capture.kind === "surface" ? capture.scrollTarget : capture.target;
+      if (scrollTarget instanceof HTMLElement && scrollTarget.isConnected) {
+        scrollTarget.scrollTop = capture.originalScrollTop;
+        scrollTarget.scrollLeft = capture.originalScrollLeft;
+        restoreInlineProperty(
+          scrollTarget,
+          "scroll-behavior",
+          capture.originalScrollBehavior,
+          capture.originalScrollBehaviorPriority,
+        );
+        restoreInlineProperty(
+          scrollTarget,
+          "scroll-snap-type",
+          capture.originalScrollSnapType,
+          capture.originalScrollSnapTypePriority,
+        );
+      }
+      restoreRepeatingEntries(capture);
+    }
+    state.capture = null;
+
+    for (const element of document.querySelectorAll("[data-bigshoot-temporary-hidden='true']")) {
+      if (!(element instanceof HTMLElement)) {
         continue;
       }
-      for (const style of entry.values) {
-        if (style.value) {
-          entry.element.style.setProperty(style.property, style.value, style.priority);
-        } else {
-          entry.element.style.removeProperty(style.property);
-        }
+      const value = element.dataset.bigshootPreviousVisibility || "";
+      const priority = element.dataset.bigshootPreviousVisibilityPriority || "";
+      if (value) {
+        element.style.setProperty("visibility", value, priority);
+      } else {
+        element.style.removeProperty("visibility");
       }
+      delete element.dataset.bigshootPreviousVisibility;
+      delete element.dataset.bigshootPreviousVisibilityPriority;
+      delete element.dataset.bigshootTemporaryHidden;
     }
-    state.restoreEntries = [];
-    for (const entry of state.restoreScrollEntries) {
-      if (entry.element?.isConnected) {
-        entry.element.scrollTop = entry.scrollTop;
-        entry.element.scrollLeft = entry.scrollLeft;
-      }
+
+    for (const style of document.querySelectorAll("style[data-bigshoot-temporary='scrollbars']")) {
+      style.remove();
     }
-    state.restoreScrollEntries = [];
     showExtensionUi();
+  }
+
+  function restoreInlineProperty(element, property, value, priority) {
+    if (value) {
+      element.style.setProperty(property, value, priority);
+    } else {
+      element.style.removeProperty(property);
+    }
   }
 
   function getSelectableTarget(event) {
     const path = event.composedPath?.() || [];
-    const target = path
-      .filter((node) => node instanceof HTMLElement && node !== ui.host)
-      .map((node) => ({ node, score: scoreSelectableTarget(node) }))
-      .sort((a, b) => b.score - a.score)[0]?.node;
+    const elements = path.filter((node) => node instanceof HTMLElement && node !== ui.host);
+    const exact = elements[0];
+    const scrollable = elements.find((node) => isSelfScrollable(node));
+    const target = scrollable && shouldPreferScrollableAncestor(exact, scrollable)
+      ? scrollable
+      : exact;
     if (!target || ui.host.contains(target)) {
       return null;
     }
     return target;
   }
 
-  function scoreSelectableTarget(element) {
-    const rect = element.getBoundingClientRect();
-    const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
-    const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
-    const areaScore = visibleWidth * visibleHeight;
-    const scrollScore = isScrollable(element)
-      ? Math.max(1, element.scrollHeight - element.clientHeight) * Math.max(1, visibleWidth) * 4
-      : 0;
-    const semantics = element.matches("main, article, section, aside, dialog, [role='dialog']")
-      ? areaScore * 0.35
-      : 0;
-    const rootPenalty = element === document.body || element === document.documentElement
-      ? window.innerWidth * window.innerHeight * 2
-      : 0;
-    return areaScore + scrollScore + semantics - rootPenalty;
+  function shouldPreferScrollableAncestor(exact, scrollable) {
+    if (!exact || exact === scrollable) {
+      return true;
+    }
+    const rect = scrollable.getBoundingClientRect();
+    const hiddenHeight = scrollable.scrollHeight - scrollable.clientHeight;
+    return hiddenHeight > 48 && rect.width >= 80 && rect.height >= 80;
   }
 
   function isFullPageTarget(element) {
@@ -621,10 +877,16 @@
   function isScrollable(element) {
     const style = getComputedStyle(element);
     const vertical = element.scrollHeight > element.clientHeight + 1
-      && /(auto|scroll|overlay|hidden)/.test(style.overflowY);
+      && /(auto|scroll|overlay)/.test(style.overflowY);
     const horizontal = element.scrollWidth > element.clientWidth + 1
-      && /(auto|scroll|overlay|hidden)/.test(style.overflowX);
+      && /(auto|scroll|overlay)/.test(style.overflowX);
     return vertical || horizontal;
+  }
+
+  function isSelfScrollable(element) {
+    const style = getComputedStyle(element);
+    return element.scrollHeight > element.clientHeight + 1
+      && /(auto|scroll|overlay)/.test(style.overflowY);
   }
 
   function findActiveCaptureSurface() {
@@ -674,7 +936,6 @@
 
     let root = element;
     let ancestor = element.parentElement;
-
     while (ancestor && ancestor !== document.body && ancestor !== document.documentElement) {
       const style = getComputedStyle(ancestor);
       const rect = ancestor.getBoundingClientRect();
@@ -683,13 +944,11 @@
         && rect.top <= rootRect.top + 2
         && rect.right >= rootRect.right - 2
         && rect.bottom >= rootRect.bottom - 2;
-
       if (containsRoot && ["fixed", "sticky"].includes(style.position)) {
         root = ancestor;
       }
       ancestor = ancestor.parentElement;
     }
-
     return root;
   }
 
@@ -697,7 +956,6 @@
     if (!isVisible(element) || element === document.body || element === document.documentElement) {
       return 0;
     }
-
     const rect = element.getBoundingClientRect();
     const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
     const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
@@ -706,12 +964,10 @@
     if (visibleArea < viewportArea * 0.12) {
       return 0;
     }
-
     const scrollRegion = findPrimaryScrollRegion(element);
     if (!scrollRegion) {
       return 0;
     }
-
     const style = getComputedStyle(element);
     const zIndex = Number.parseInt(style.zIndex, 10) || 0;
     const hiddenHeight = Math.max(0, scrollRegion.scrollHeight - scrollRegion.clientHeight);
@@ -721,16 +977,92 @@
 
   function findPrimaryScrollRegion(surface) {
     const regions = [surface, ...surface.querySelectorAll("*")]
-      .filter((element) => element instanceof HTMLElement && isScrollable(element));
-
+      .filter((element) => element instanceof HTMLElement && isSelfScrollable(element));
     return regions.sort((a, b) => scoreScrollRegion(b) - scoreScrollRegion(a))[0] || null;
   }
 
   function scoreScrollRegion(element) {
     const rect = element.getBoundingClientRect();
     const hiddenHeight = Math.max(0, element.scrollHeight - element.clientHeight);
-    const hiddenWidth = Math.max(0, element.scrollWidth - element.clientWidth);
-    return hiddenHeight * Math.max(1, rect.width) + hiddenWidth * Math.max(1, rect.height);
+    return hiddenHeight * Math.max(1, rect.width);
+  }
+
+  function readInnerGeometry(element) {
+    const borderRect = element.getBoundingClientRect();
+    if (borderRect.width <= 0 || borderRect.height <= 0 || element.offsetWidth <= 0 || element.offsetHeight <= 0) {
+      throw new Error("The selected element is not visible.");
+    }
+    const scaleX = borderRect.width / element.offsetWidth;
+    const scaleY = borderRect.height / element.offsetHeight;
+    const left = borderRect.left + element.clientLeft * scaleX;
+    const top = borderRect.top + element.clientTop * scaleY;
+    const width = element.clientWidth * scaleX;
+    const height = element.clientHeight * scaleY;
+    return {
+      scaleX,
+      scaleY,
+      rect: {
+        left,
+        top,
+        right: left + width,
+        bottom: top + height,
+        width,
+        height,
+      },
+    };
+  }
+
+  function lockRectSize(current, locked) {
+    return {
+      left: current.left,
+      top: current.top,
+      right: current.left + locked.width,
+      bottom: current.top + locked.height,
+      width: locked.width,
+      height: locked.height,
+    };
+  }
+
+  function toPlainRect(rect) {
+    return {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  function assertFullyVisible(rect, label) {
+    if (
+      rect.left < -VIEWPORT_TOLERANCE
+      || rect.top < -VIEWPORT_TOLERANCE
+      || rect.right > window.innerWidth + VIEWPORT_TOLERANCE
+      || rect.bottom > window.innerHeight + VIEWPORT_TOLERANCE
+    ) {
+      throw new Error(`Move the ${label} fully into the viewport before capturing it.`);
+    }
+  }
+
+  function assertPaddedRectFullyVisible(rect, padding, label) {
+    assertFullyVisible({
+      left: rect.left - padding,
+      top: rect.top - padding,
+      right: rect.right + padding,
+      bottom: rect.bottom + padding,
+    }, label);
+  }
+
+  function rectsOverlap(first, second) {
+    return first.left < second.right
+      && first.right > second.left
+      && first.top < second.bottom
+      && first.bottom > second.top;
+  }
+
+  function rectsOverlapVertically(first, second) {
+    return first.top < second.bottom && first.bottom > second.top;
   }
 
   function isVisible(element) {
@@ -779,14 +1111,18 @@
     };
   }
 
-  function sanitizeClip(clip) {
+  function sanitizeDocumentClip(clip) {
     const maxDimension = 32767;
     return {
-      x: Math.max(0, Math.floor(clip.x)),
-      y: Math.max(0, Math.floor(clip.y)),
-      width: clamp(Math.ceil(clip.width), 1, maxDimension),
-      height: clamp(Math.ceil(clip.height), 1, maxDimension),
+      x: Math.max(0, clip.x),
+      y: Math.max(0, clip.y),
+      width: clamp(clip.width, 1, maxDimension),
+      height: clamp(clip.height, 1, maxDimension),
     };
+  }
+
+  function createSessionId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   }
 
   function hideExtensionUi() {
@@ -812,41 +1148,23 @@
   }
 
   async function copyImageToClipboard(dataUrl) {
-    if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-      throw new Error("The Clipboard API is not available in this tab.");
+    if (!document.hasFocus()) {
+      window.focus();
     }
-
-    const blob = dataUrlToBlob(dataUrl);
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
     await navigator.clipboard.write([
       new ClipboardItem({ "image/png": blob }),
     ]);
   }
 
-  function dataUrlToBlob(dataUrl) {
-    const separator = dataUrl.indexOf(",");
-    if (separator === -1) {
-      throw new Error("The screenshot data is invalid.");
-    }
-
-    const metadata = dataUrl.slice(0, separator);
-    const encoded = dataUrl.slice(separator + 1);
-    const mimeType = metadata.match(/^data:([^;,]+)/)?.[1] || "image/png";
-    const binary = metadata.includes(";base64")
-      ? atob(encoded)
-      : decodeURIComponent(encoded);
-    const bytes = new Uint8Array(binary.length);
-
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-
-    return new Blob([bytes], { type: mimeType });
+  async function waitForPaint() {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
-  function waitForPaint() {
-    return new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
+  function normalizeError(error) {
+    return error instanceof Error ? error.message : String(error || "Something went wrong.");
   }
 
   function clamp(value, min, max) {
@@ -979,20 +1297,18 @@
       .toast[data-tone="working"]::before {
         content: "";
         display: inline-block;
-        width: 10px;
-        height: 10px;
+        width: 11px;
+        height: 11px;
         margin-right: 8px;
         border: 2px solid rgba(255,255,255,.35);
         border-top-color: #fff;
         border-radius: 50%;
-        animation: spin .7s linear infinite;
+        animation: spin .8s linear infinite;
+        vertical-align: -1px;
       }
       [hidden] { display: none !important; }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes enter { from { opacity: 0; transform: translateY(8px); } }
-      @media (prefers-reduced-motion: reduce) {
-        .focus, .toast { transition: none; animation: none; }
-      }
     `;
 
     const focus = document.createElement("div");
@@ -1009,21 +1325,23 @@
 
     const help = document.createElement("div");
     help.className = "help";
+    help.hidden = true;
     help.innerHTML = `
-      <span class="mark" aria-hidden="true">⌖</span>
+      <span class="mark">●</span>
       <span>Click to capture</span>
-      <kbd>F</kbd><span>Full page / window</span>
-      <kbd>↑</kbd><span>Parent element</span>
+      <kbd>F</kbd><span>Full page/window</span>
+      <kbd>↑</kbd><span>Parent</span>
       <kbd>Esc</kbd>
     `;
 
     const toast = document.createElement("div");
     toast.className = "toast";
     toast.hidden = true;
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
 
     shadow.append(style, focus, help, toast);
-    document.documentElement.append(host);
-
-    return { host, focus, badge, label, meta, help, toast, toastTimer: null };
+    (document.documentElement || document.body).append(host);
+    return { host, shadow, focus, badge, label, meta, help, toast, toastTimer: null };
   }
 })();

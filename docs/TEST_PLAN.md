@@ -21,14 +21,16 @@
 - [ ] Capture an element taller than the viewport, including its lower content.
 - [ ] Capture an element below the fold without first scrolling to the bottom.
 - [ ] Capture an `overflow: auto` sidebar with all of its scrollable content.
-- [ ] Move over a child inside a scrollable panel and confirm the picker prefers the complete scroll region when it contains substantially more hidden content.
-- [ ] Confirm the page restores the sidebar height, overflow, and layout after capture.
+- [ ] Move over content inside a scrollable panel and confirm the picker selects the complete panel automatically.
+- [ ] Confirm all hidden panel content is captured exactly once, including with non-scrolling content beside it.
+- [ ] Confirm the page restores the sidebar scroll position and leaves its height, overflow, flex, and position unchanged.
 - [ ] Press `F` and capture the full document height.
 - [ ] Open a fixed modal or drawer with an independently scrolling body, press `F`, and capture all hidden content without the page behind it.
 - [ ] Confirm the capture shows the final drawer row once, without repeating the drawer header or first content block below the original viewport boundary.
+- [ ] Confirm sticky content inside a scroll region is captured in document order and is not repeated at stitch boundaries.
 - [ ] With an open modal or drawer, select the page background and confirm the output captures the complete active surface rather than a cropped viewport.
 - [ ] Confirm the modal or drawer returns to its original size and scroll position after capture.
-- [ ] On a Retina or other high-density display, confirm output dimensions match the CSS dimensions shown by the picker.
+- [ ] On a Retina or other high-density display, confirm output keeps the native device-pixel density (CSS dimensions multiplied by the display scale).
 - [ ] Change padding in Settings and confirm the output dimensions change as expected.
 
 ## Keyboard shortcut

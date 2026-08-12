@@ -1,6 +1,6 @@
 # Bigshoot
 
-Bigshoot is a Chrome extension that captures an entire DOM element using the familiar **Capture node screenshot** workflow from DevTools, without requiring users to open DevTools. It can temporarily expand an independently scrollable region, such as a sidebar, capture all hidden content, and restore the page to its original state.
+Bigshoot is a Chrome extension that captures an entire DOM element using the familiar **Capture node screenshot** workflow from DevTools, without requiring users to open DevTools. Independently scrollable regions, such as sidebars and drawer bodies, are captured by scrolling the real region and stitching only newly revealed pixels. Bigshoot does not expand or reflow the page layout.
 
 ## How to use it
 
@@ -54,7 +54,7 @@ docs/TEST_PLAN.md             Manual test scenarios
 - Pages or elements larger than 32,767 px on either axis may be limited by Chrome or the GPU rendering pipeline.
 - Lazy-loaded content that appears only after scrolling must be loaded before capture.
 - Canvas, WebGL, video, and cross-origin iframe content may behave differently depending on the page's security policies.
-- Layouts that reflow significantly when a sidebar is expanded may look slightly different from their original scrolled state.
+- Virtualized lists may only expose rows that the website renders while Bigshoot scrolls through them.
 
 ## Privacy
 

@@ -3,107 +3,133 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bigshoot test page</title>
+    <title>Bigshoot deterministic capture fixture</title>
     <style>
       :root {
-        color: #173137;
-        background: #eef5f3;
+        color: #102a30;
+        background: #edf4f2;
         font-family: Avenir, "Trebuchet MS", sans-serif;
       }
+
       * { box-sizing: border-box; }
-      body { margin: 0; }
-      header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        height: 76px;
-        padding: 0 42px;
-        color: white;
-        background: #173137;
-      }
-      header strong { font-family: Rockwell, serif; font-size: 23px; }
-      header span { color: #8ee7ef; font-size: 13px; }
-      main {
+      html, body { margin: 0; }
+
+      .page-band {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 320px;
-        gap: 28px;
-        max-width: 1180px;
-        margin: 0 auto;
-        padding: 42px 28px 100px;
+        height: 360px;
+        place-items: center;
+        color: white;
+        font: 800 44px/1 Rockwell, Georgia, serif;
+        letter-spacing: -.03em;
       }
-      .hero {
-        min-height: 430px;
-        padding: 46px;
-        background: white;
-        border-radius: 20px;
-        box-shadow: 0 20px 60px rgba(23,49,55,.1);
+
+      .page-band-1 { background: #153e5c; }
+      .page-band-2 { background: #e86a33; }
+      .page-band-3 { background: #2b8a6e; }
+      .page-band-4 { background: #c13f5b; }
+
+      .fixture-stage {
+        position: relative;
+        min-height: 840px;
+        padding: 64px;
+        background: #f4c95d;
       }
-      .hero p:first-child {
-        color: #0b7f8c;
-        font-family: monospace;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: .1em;
-      }
-      h1 {
-        max-width: 650px;
-        margin: 22px 0;
-        font-family: Rockwell, serif;
-        font-size: 60px;
-        line-height: .98;
+
+      .fixture-heading {
+        max-width: 720px;
+        margin: 0 0 36px;
+        font: 800 54px/.98 Rockwell, Georgia, serif;
         letter-spacing: -.04em;
       }
-      .hero p:last-child { max-width: 610px; color: #62787b; font-size: 18px; line-height: 1.65; }
-      .sidebar {
-        position: sticky;
-        top: 28px;
-        height: 520px;
-        overflow: auto;
-        padding: 18px;
-        background: #dff5f5;
-        border: 1px solid #8fcfd2;
-        border-radius: 18px;
+
+      .static-element {
+        width: 420px;
+        height: 240px;
+        border: 12px solid #14213d;
+        background: linear-gradient(
+          to bottom,
+          #ea3546 0 25%,
+          #3bceac 25% 50%,
+          #ffbe0b 50% 75%,
+          #5f4bb6 75% 100%
+        );
       }
-      .sidebar h2 { margin: 5px 4px 16px; font-family: Rockwell, serif; }
-      .card {
-        min-height: 150px;
-        margin-bottom: 12px;
-        padding: 18px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 8px 24px rgba(23,49,55,.08);
-      }
-      .card strong { display: block; margin-bottom: 8px; }
-      .card span { color: #678084; font-size: 13px; line-height: 1.5; }
-      .content {
-        grid-column: 1;
+
+      .static-element::after {
+        content: "STATIC";
         display: grid;
-        gap: 18px;
+        height: 100%;
+        place-items: center;
+        color: #14213d;
+        font: 900 32px/1 Rockwell, Georgia, serif;
       }
-      .content article { min-height: 280px; padding: 34px; background: white; border-radius: 18px; }
+
+      .self-scroll {
+        position: absolute;
+        top: 64px;
+        right: 64px;
+        width: 360px;
+        height: 360px;
+        overflow-y: scroll;
+        overscroll-behavior: contain;
+        border: 10px solid #102a30;
+        background: white;
+        scrollbar-width: none;
+      }
+
+      .self-scroll::-webkit-scrollbar,
+      .drawer-body::-webkit-scrollbar {
+        display: none;
+      }
+
+      .scroll-band {
+        display: grid;
+        height: 180px;
+        place-items: center;
+        color: white;
+        font: 900 46px/1 Rockwell, Georgia, serif;
+      }
+
+      .scroll-band-1 { background: #d7263d; }
+      .scroll-band-2 { background: #1b998b; }
+      .scroll-band-3 { background: #ff9f1c; }
+      .scroll-band-4 { background: #5c4d7d; }
+      .scroll-band-5 { background: #2d6cdf; }
+
+      .sticky-scroll-label {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: grid;
+        height: 40px;
+        place-items: center;
+        color: white;
+        background: #102a30;
+        font: 800 13px/1 Avenir, "Trebuchet MS", sans-serif;
+        letter-spacing: .08em;
+      }
+
+      .open-drawer {
+        margin-top: 40px;
+        padding: 13px 20px;
+        color: white;
+        background: #102a30;
+        border: 0;
+        border-radius: 8px;
+        font: 800 16px/1 Avenir, "Trebuchet MS", sans-serif;
+        cursor: pointer;
+      }
 
       .drawer-backdrop {
         position: fixed;
         inset: 0;
         z-index: 20;
-        background: rgba(15, 23, 42, 0.42);
+        background: rgba(7, 18, 23, .48);
       }
 
       .drawer-backdrop[hidden],
       .test-drawer[hidden] {
         display: none;
-      }
-
-      .open-drawer {
-        margin-top: 24px;
-        padding: 12px 18px;
-        color: white;
-        background: #0b7f8c;
-        border: 0;
-        border-radius: 10px;
-        font: inherit;
-        font-weight: 700;
-        cursor: pointer;
       }
 
       .test-drawer {
@@ -113,78 +139,127 @@
         right: 0;
         bottom: 0;
         display: flex;
-        width: min(680px, 80vw);
+        width: 520px;
         flex-direction: column;
         background: white;
-        box-shadow: -20px 0 60px rgba(15, 23, 42, 0.24);
+        box-shadow: -24px 0 70px rgba(7, 18, 23, .32);
+      }
+
+      .test-drawer[data-layout="split"] {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        grid-template-rows: 120px minmax(0, 1fr);
+      }
+
+      .test-drawer[data-layout="split"] .drawer-header {
+        grid-column: 1 / -1;
+      }
+
+      .drawer-static-rail {
+        display: none;
+        grid-row: 2;
+        place-items: center;
+        color: white;
+        background: #023047;
+        font: 900 17px/1 Rockwell, Georgia, serif;
+        writing-mode: vertical-rl;
+      }
+
+      .test-drawer[data-layout="split"] .drawer-static-rail {
+        display: grid;
       }
 
       .drawer-header {
-        flex: 0 0 auto;
-        padding: 22px 28px;
-        border-bottom: 1px solid #dbe5e7;
+        display: grid;
+        flex: 0 0 120px;
+        place-items: center;
+        color: white;
+        background: #102a30;
+        border-bottom: 8px solid #7ae7c7;
+        font: 900 27px/1 Rockwell, Georgia, serif;
       }
 
       .drawer-body {
         min-height: 0;
         flex: 1 1 auto;
-        overflow-y: auto;
-        padding: 24px 28px;
+        overflow-y: scroll;
+        overscroll-behavior: contain;
+        background: white;
+        scrollbar-width: none;
       }
 
-      .drawer-section {
-        min-height: 420px;
-        margin-bottom: 18px;
-        padding: 28px;
-        background: #f4f8f8;
-        border-radius: 16px;
+      .drawer-fixed-control {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 30;
+        display: grid;
+        width: 72px;
+        height: 72px;
+        place-items: center;
+        color: white;
+        background: #00b4d8;
+        border-radius: 50%;
+        font: 900 12px/1 Avenir, "Trebuchet MS", sans-serif;
       }
-      @media (max-width: 760px) {
-        main { grid-template-columns: 1fr; }
-        .sidebar { position: static; }
-        h1 { font-size: 44px; }
+
+      .drawer-band {
+        display: grid;
+        height: 240px;
+        place-items: center;
+        color: white;
+        font: 900 42px/1 Rockwell, Georgia, serif;
+      }
+
+      .drawer-band-1 { background: #ef476f; }
+      .drawer-band-2 { background: #118ab2; }
+      .drawer-band-3 { background: #f78c6b; }
+      .drawer-band-4 { background: #6a4c93; }
+
+      .document-end {
+        height: 80px;
+        background: #102a30;
       }
     </style>
   </head>
   <body>
-    <header><strong>Northstar</strong><span>Bigshoot capture fixture</span></header>
-    <main>
-      <section class="hero">
-        <p>PROJECT / 08.12.2026</p>
-        <h1>One long page, one scrolling sidebar.</h1>
-        <p>This fixture reproduces the two cases Bigshoot needs to handle: a long element below the viewport and an independently scrollable panel.</p>
-        <button class="open-drawer" type="button">Open drawer fixture</button>
-      </section>
-      <aside class="sidebar" id="scrolling-sidebar">
-        <h2>Activity</h2>
-        <div class="card"><strong>Project created</strong><span>Content at the top of the sidebar.</span></div>
-        <div class="card"><strong>Wireframe completed</strong><span>More content continues below the visible region.</span></div>
-        <div class="card"><strong>Content reviewed</strong><span>Bigshoot must capture this card before it has been scrolled into view.</span></div>
-        <div class="card"><strong>Design delivered</strong><span>The end of the independently scrollable region.</span></div>
+    <section class="page-band page-band-1" data-page-band="1">PAGE 1</section>
+    <main class="fixture-stage">
+      <h1 class="fixture-heading">Deterministic screenshot geometry</h1>
+      <section class="static-element" data-capture="static" aria-label="Static capture target"></section>
+      <aside class="self-scroll" id="self-scroll" data-capture="self-scroll" aria-label="Scrollable capture target">
+        <div class="sticky-scroll-label">STICKY LABEL</div>
+        <div class="scroll-band scroll-band-1" data-scroll-band="1">SCROLL 1</div>
+        <div class="scroll-band scroll-band-2" data-scroll-band="2">SCROLL 2</div>
+        <div class="scroll-band scroll-band-3" data-scroll-band="3">SCROLL 3</div>
+        <div class="scroll-band scroll-band-4" data-scroll-band="4">SCROLL 4</div>
+        <div class="scroll-band scroll-band-5" data-scroll-band="5">SCROLL 5</div>
       </aside>
-      <section class="content">
-        <article><h2>Content section 01</h2><p>The page continues below the viewport.</p></article>
-        <article><h2>Content section 02</h2><p>A full-page screenshot must include this section.</p></article>
-        <article><h2>Content section 03</h2><p>The end of the test fixture.</p></article>
-      </section>
+      <button class="open-drawer" type="button">Open deterministic drawer</button>
     </main>
+    <section class="page-band page-band-2" data-page-band="2">PAGE 2</section>
+    <section class="page-band page-band-3" data-page-band="3">PAGE 3</section>
+    <section class="page-band page-band-4" data-page-band="4">PAGE 4</section>
+    <footer class="document-end"></footer>
 
     <div class="drawer-backdrop" hidden></div>
-    <section class="test-drawer" role="dialog" aria-modal="true" aria-label="Scrollable capture fixture" hidden>
-      <header class="drawer-header">
-        <strong>Open transaction drawer</strong>
-        <span>Press F to capture all drawer sections.</span>
-      </header>
-      <div class="drawer-body" id="scrolling-drawer-body">
-        <article class="drawer-section"><h2>Drawer section 01</h2><p>This section begins inside the viewport.</p></article>
-        <article class="drawer-section"><h2>Drawer section 02</h2><p>This section is initially hidden below the drawer fold.</p></article>
-        <article class="drawer-section"><h2>Drawer section 03</h2><p>The full-window capture must include this final section.</p></article>
+    <section class="test-drawer" role="dialog" aria-modal="true" aria-label="Scrollable drawer capture target" hidden>
+      <header class="drawer-header">DRAWER HEADER</header>
+      <aside class="drawer-static-rail">STATIC RAIL</aside>
+      <div class="drawer-body" id="drawer-body">
+        <div class="drawer-band drawer-band-1" data-drawer-band="1">DRAWER 1</div>
+        <div class="drawer-band drawer-band-2" data-drawer-band="2">DRAWER 2</div>
+        <div class="drawer-band drawer-band-3" data-drawer-band="3">DRAWER 3</div>
+        <div class="drawer-band drawer-band-4" data-drawer-band="4">DRAWER 4</div>
+        <div class="drawer-fixed-control">FIXED</div>
       </div>
     </section>
+
     <script>
       const openDrawer = document.querySelector(".open-drawer");
       const drawer = document.querySelector(".test-drawer");
       const backdrop = document.querySelector(".drawer-backdrop");
+
       openDrawer.addEventListener("click", () => {
         drawer.hidden = false;
         backdrop.hidden = false;

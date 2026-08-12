@@ -1,6 +1,6 @@
 {
   "name": "bigshoot-chrome-extension",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Chrome extension for full element and full-page screenshots.",
   "scripts": {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4 - 2026-08-12
+
+- Replace layout expansion with deterministic scroll-and-stitch capture for independently scrollable elements and open windows.
+- Keep fixed, flex, overflow, and sticky page layouts intact to prevent duplicated or cropped content.
+- Prefer the enclosing scroll region when the pointer is over its content, while keeping Arrow Up for manual parent selection.
+- Preserve native high-density output and restore every captured scroll position and temporary style.
+- Add pixel-level E2E coverage for static elements, padding, scrollable elements, sticky/fixed content, split drawers, full pages, and duplicate detection.
+
 ## 1.0.3 - 2026-08-12
 
 - Expand the complete flex shell around independently scrolling content so fixed drawers and selected scroll regions include their final rows.

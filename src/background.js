@@ -60,54 +60,33 @@ async function captureSelection(tab, mode) {
 
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   let debuggerAttached = false;
-  let prepared = false;
   let captureError = null;
 
   try {
-    const preparation = await chrome.tabs.sendMessage(tab.id, {
+    await chrome.debugger.attach({ tabId: tab.id }, "1.3");
+    debuggerAttached = true;
+    await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.enable");
+    await waitForStableViewport(tab.id);
+
+    const plan = await chrome.tabs.sendMessage(tab.id, {
       type: "BIGSHOOT_PREPARE_CAPTURE",
       mode,
       padding: settings.padding,
     });
 
-    if (!preparation?.ok || !preparation.clip) {
-      throw new Error(preparation?.error || "The capture region could not be measured.");
+    if (!plan?.ok || !plan.kind) {
+      throw new Error(plan?.error || "The capture region could not be measured.");
     }
-    prepared = true;
-
-    await chrome.debugger.attach({ tabId: tab.id }, "1.3");
-    debuggerAttached = true;
-    await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.enable");
-    const layoutMetrics = await chrome.debugger.sendCommand(
-      { tabId: tab.id },
-      "Page.getLayoutMetrics",
-    );
-    const deviceScaleFactor = getDeviceScaleFactor(layoutMetrics);
-
-    const result = await chrome.debugger.sendCommand(
-      { tabId: tab.id },
-      "Page.captureScreenshot",
-      {
-        format: "png",
-        fromSurface: true,
-        captureBeyondViewport: true,
-        clip: {
-          x: preparation.clip.x,
-          y: preparation.clip.y,
-          width: preparation.clip.width,
-          height: preparation.clip.height,
-          scale: 1 / deviceScaleFactor,
-        },
-      },
-    );
-
-    if (!result?.data) {
-      throw new Error("Chrome did not return screenshot data.");
+    let dataUrl;
+    if (plan.kind === "cdp") {
+      dataUrl = await captureCdpClip(tab.id, plan.clip);
+    } else if (plan.kind === "stitched") {
+      dataUrl = await captureAndStitch(tab.id, plan);
+    } else {
+      throw new Error("The page returned an unsupported capture plan.");
     }
 
-    const dataUrl = `data:image/png;base64,${result.data}`;
     const filename = buildFilename(tab.title, mode);
-
     if (settings.destination === "clipboard") {
       await copyImageToClipboard(tab.id, dataUrl);
     } else {
@@ -120,11 +99,10 @@ async function captureSelection(tab, mode) {
   } catch (error) {
     captureError = error;
   } finally {
+    // Preparation may fail after the page has already been changed, so cleanup is unconditional.
+    await safeSend(tab.id, { type: "BIGSHOOT_RESTORE_PAGE" });
     if (debuggerAttached) {
       await chrome.debugger.detach({ tabId: tab.id }).catch(() => {});
-    }
-    if (prepared) {
-      await safeSend(tab.id, { type: "BIGSHOOT_RESTORE_PAGE" });
     }
   }
 
@@ -142,13 +120,265 @@ async function captureSelection(tab, mode) {
   });
 }
 
-function getDeviceScaleFactor(layoutMetrics) {
-  const cssWidth = layoutMetrics?.cssVisualViewport?.clientWidth;
-  const deviceWidth = layoutMetrics?.visualViewport?.clientWidth;
-  if (!Number.isFinite(cssWidth) || !Number.isFinite(deviceWidth) || cssWidth <= 0 || deviceWidth <= 0) {
-    return 1;
+async function waitForStableViewport(tabId) {
+  let previous = null;
+  let stableSamples = 0;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const metrics = await chrome.debugger.sendCommand(
+      { tabId },
+      "Page.getLayoutMetrics",
+    );
+    const viewport = metrics?.cssVisualViewport;
+    const current = viewport
+      ? `${viewport.clientWidth}:${viewport.clientHeight}:${viewport.pageX}:${viewport.pageY}`
+      : "unknown";
+
+    stableSamples = current === previous ? stableSamples + 1 : 0;
+    if (stableSamples >= 2) {
+      return;
+    }
+    previous = current;
+    await delay(100);
   }
-  return Math.max(1, deviceWidth / cssWidth);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function captureCdpClip(tabId, clip) {
+  const normalizedClip = sanitizeClip(clip);
+  const result = await chrome.debugger.sendCommand(
+    { tabId },
+    "Page.captureScreenshot",
+    {
+      format: "png",
+      fromSurface: true,
+      captureBeyondViewport: true,
+      clip: {
+        ...normalizedClip,
+        scale: 1,
+      },
+    },
+  );
+
+  if (!result?.data) {
+    throw new Error("Chrome did not return screenshot data.");
+  }
+  return `data:image/png;base64,${result.data}`;
+}
+
+async function captureAndStitch(tabId, plan) {
+  const firstFrame = await captureViewport(tabId);
+  const firstPng = readPngDimensions(firstFrame.data);
+  const firstCrop = await readFrameCrop(tabId, plan.sessionId, 0, firstPng);
+  const outputWidth = firstCrop.crop.width;
+  const expectedOutputHeight = firstCrop.outputHeight;
+  const frameScale = firstCrop.scale;
+
+  const frames = [{ data: firstFrame.data, crop: firstCrop.crop }];
+  let capturedHeight = firstCrop.crop.height;
+
+  let done = firstCrop.done;
+  for (let frameIndex = 1; !done; frameIndex += 1) {
+    const step = await chrome.tabs.sendMessage(tabId, {
+      type: "BIGSHOOT_ADVANCE_CAPTURE",
+      sessionId: plan.sessionId,
+      frameIndex,
+    });
+    if (!step?.ok) {
+      throw new Error(step?.error || "The page could not advance to the next screenshot frame.");
+    }
+
+    const frame = await captureViewport(tabId);
+    const dimensions = readPngDimensions(frame.data);
+    const frameCrop = await readFrameCrop(tabId, plan.sessionId, frameIndex, dimensions);
+    if (frameCrop.scale !== frameScale) {
+      throw new Error("The browser display scale changed during capture.");
+    }
+    frames.push({ data: frame.data, crop: frameCrop.crop });
+    capturedHeight += frameCrop.crop.height;
+    done = frameCrop.done;
+
+    if (done) {
+      break;
+    }
+    if (frameIndex >= 199) {
+      throw new Error("The capture exceeded the 200-frame safety limit.");
+    }
+  }
+
+  if (Math.abs(capturedHeight - expectedOutputHeight) > 2) {
+    throw new Error(
+      `The stitched screenshot geometry changed (${capturedHeight}/${expectedOutputHeight}px).`,
+    );
+  }
+
+  assertCanvasSize(outputWidth, expectedOutputHeight);
+  const canvas = new OffscreenCanvas(outputWidth, expectedOutputHeight);
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) {
+    throw new Error("Chrome could not create the screenshot canvas.");
+  }
+  let destinationY = 0;
+  for (const frame of frames) {
+    destinationY += await drawFrame(context, frame.data, frame.crop, destinationY);
+  }
+  if (destinationY !== expectedOutputHeight) {
+    throw new Error(`The stitched screenshot ended at ${destinationY}/${expectedOutputHeight}px.`);
+  }
+  const blob = await canvas.convertToBlob({ type: "image/png" });
+  return blobToDataUrl(blob);
+}
+
+async function captureViewport(tabId) {
+  const result = await chrome.debugger.sendCommand(
+    { tabId },
+    "Page.captureScreenshot",
+    {
+      format: "png",
+      fromSurface: true,
+      captureBeyondViewport: false,
+    },
+  );
+  if (!result?.data) {
+    throw new Error("Chrome did not return screenshot frame data.");
+  }
+  return result;
+}
+
+async function readFrameCrop(tabId, sessionId, frameIndex, dimensions) {
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: "BIGSHOOT_READ_CAPTURE_FRAME",
+    sessionId,
+    frameIndex,
+    bitmapWidth: dimensions.width,
+    bitmapHeight: dimensions.height,
+  });
+  if (!response?.ok || !response.crop) {
+    throw new Error(response?.error || "The screenshot frame could not be measured.");
+  }
+  return response;
+}
+
+async function drawFrame(context, base64, crop, destinationY) {
+  const bitmap = await createImageBitmap(base64ToBlob(base64, "image/png"));
+  try {
+    const normalized = sanitizeBitmapCrop(crop, bitmap.width, bitmap.height);
+    const remainingHeight = context.canvas.height - destinationY;
+    if (normalized.height > remainingHeight + 1) {
+      throw new Error("A screenshot frame exceeds the remaining output height.");
+    }
+    const drawHeight = Math.min(normalized.height, remainingHeight);
+    context.drawImage(
+      bitmap,
+      normalized.x,
+      normalized.y,
+      normalized.width,
+      drawHeight,
+      0,
+      destinationY,
+      normalized.width,
+      drawHeight,
+    );
+    return drawHeight;
+  } finally {
+    bitmap.close();
+  }
+}
+
+function sanitizeBitmapCrop(crop, bitmapWidth, bitmapHeight) {
+  const x = Math.round(Number(crop.x));
+  const y = Math.round(Number(crop.y));
+  const width = Math.round(Number(crop.width));
+  const height = Math.round(Number(crop.height));
+
+  if (
+    ![x, y, width, height].every(Number.isFinite)
+    || x < 0
+    || y < 0
+    || width < 1
+    || height < 1
+    || x + width > bitmapWidth
+    || y + height > bitmapHeight
+  ) {
+    throw new Error(
+      `The frame crop ${x},${y},${width}x${height} exceeds ${bitmapWidth}x${bitmapHeight}.`,
+    );
+  }
+  return { x, y, width, height };
+}
+
+function assertCanvasSize(width, height) {
+  const maxDimension = 32767;
+  if (
+    !Number.isInteger(width)
+    || !Number.isInteger(height)
+    || width < 1
+    || height < 1
+    || width > maxDimension
+    || height > maxDimension
+  ) {
+    throw new Error(`The screenshot size ${width}x${height} exceeds Chrome's safe canvas limit.`);
+  }
+}
+
+function readPngDimensions(base64) {
+  const binary = atob(base64.slice(0, 40));
+  if (binary.length < 24 || binary.slice(1, 4) !== "PNG") {
+    throw new Error("Chrome returned an invalid PNG screenshot.");
+  }
+  return {
+    width: readUint32(binary, 16),
+    height: readUint32(binary, 20),
+  };
+}
+
+function readUint32(binary, offset) {
+  return (
+    binary.charCodeAt(offset) * 0x1000000
+    + binary.charCodeAt(offset + 1) * 0x10000
+    + binary.charCodeAt(offset + 2) * 0x100
+    + binary.charCodeAt(offset + 3)
+  );
+}
+
+function base64ToBlob(base64, mimeType) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function blobToDataUrl(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return `data:${blob.type};base64,${btoa(binary)}`;
+}
+
+function sanitizeClip(clip) {
+  const x = Number(clip?.x);
+  const y = Number(clip?.y);
+  const width = Number(clip?.width);
+  const height = Number(clip?.height);
+  const maxDimension = 32767;
+  if (
+    ![x, y, width, height].every(Number.isFinite)
+    || width <= 0
+    || height <= 0
+    || width > maxDimension
+    || height > maxDimension
+  ) {
+    throw new Error("The capture clip is outside Chrome's supported size.");
+  }
+  return { x, y, width, height };
 }
 
 async function copyImageToClipboard(tabId, dataUrl) {
