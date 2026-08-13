@@ -8,7 +8,7 @@ This guide covers **Private** distribution to users in the same Google Workspace
 npm run package
 ```
 
-Output: `dist/bigshoot-1.1.1.zip`.
+Output: `dist/bigshoot-1.1.2.zip`.
 
 The Chrome Web Store does not accept the same version number twice. Update `manifest.json`, `package.json`, and `CHANGELOG.md` before later releases.
 
@@ -33,7 +33,7 @@ The Chrome Web Store does not accept the same version number twice. Update `mani
 
 **Detailed description**
 
-> Bigshoot captures the entire active webpage as a PNG, including content below the browser viewport. Press Command+Shift+6 on macOS, Ctrl+Shift+6 elsewhere, or click the toolbar icon to capture immediately. Screenshots are saved using Chrome's download preferences or copied to the clipboard according to the user's setting. Bigshoot has no element picker, sends no data to a server, and does not modify webpage layout or scroll position.
+> Bigshoot captures the entire active webpage as a PNG, including content below the browser viewport. Press Command+Shift+6 on macOS, Ctrl+Shift+6 elsewhere, or click the toolbar icon to capture immediately. Screenshots are saved using Chrome's download preferences or copied to the clipboard according to the user's setting. Bigshoot has no element picker, sends no data to a server, and restores any temporary capture layout changes before returning control to the page.
 
 **Suggested category**
 
@@ -54,11 +54,11 @@ The Chrome Web Store does not accept the same version number twice. Update `mani
 | `activeTab` | Grants temporary access to the active tab after the user clicks the icon or invokes the shortcut. |
 | `debugger` | Calls `Page.getLayoutMetrics` and `Page.captureScreenshot` to capture the complete document beyond the viewport, then detaches immediately. |
 | `downloads` | Saves the PNG using Chrome's current download settings. |
+| `scripting` | Temporarily expands a visible app scroll container before the full-document capture, then restores the page. |
 | `clipboardWrite` | Copies the PNG when clipboard mode is selected. |
 | `storage` | Stores the selected screenshot destination. |
 | `contextMenus` | Adds **Bigshoot settings** to the toolbar icon's context menu. |
-
-No persistent host permission is requested. Access occurs only after an explicit user action.
+| `file:///*` | Allows explicit captures of local HTML and MHTML files. Users must also enable Chrome's **Allow access to file URLs** switch for the extension. |
 
 ## 5. Privacy practices
 

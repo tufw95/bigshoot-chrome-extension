@@ -20,12 +20,16 @@ if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) {
   throw new Error("Manifest version must use x.y.z format.");
 }
 
-if (manifest.permissions.includes("scripting")) {
-  throw new Error("The simplified extension must not request the scripting permission.");
-}
-
 if (!manifest.permissions.includes("debugger")) {
   throw new Error("Full-page capture requires the debugger permission.");
+}
+
+if (!manifest.permissions.includes("scripting")) {
+  throw new Error("Full-page capture requires the scripting permission.");
+}
+
+if (!manifest.host_permissions?.includes("file:///*")) {
+  throw new Error("Local MHTML capture requires the file:///* host permission.");
 }
 
 console.log(`Validated ${manifest.name} v${manifest.version}`);

@@ -32,8 +32,15 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 async function captureFullPage(tab) {
-  if (!tab?.id || !isSupportedUrl(tab.url)) {
-    await showBadge(tab?.id, "!", "#d74b3f", "Chrome does not allow this page to be captured.");
+  if (!tab?.id) {
+    return;
+  }
+
+  const tabUrl = await resolveTabUrl(tab);
+  const fileAccessAllowed = await chrome.extension.isAllowedFileSchemeAccess();
+  const preCaptureViewport = await readPageViewport(tab.id).catch(() => null);
+  if (tabUrl && !isSupportedUrl(tabUrl)) {
+    await showBadge(tab.id, "!", "#d74b3f", "Chrome does not allow this page to be captured.");
     return;
   }
   if (activeCaptures.has(tab.id)) {
@@ -43,6 +50,7 @@ async function captureFullPage(tab) {
 
   activeCaptures.add(tab.id);
   let debuggerAttached = false;
+  let pagePrepared = false;
 
   try {
     const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
@@ -51,8 +59,19 @@ async function captureFullPage(tab) {
     debuggerAttached = true;
     await cdp(tab.id, "Page.enable");
 
+    pagePrepared = true;
+    const pagePlan = await preparePageForCapture(tab.id);
+
     const metrics = await waitForCaptureReady(tab.id);
     const clip = sanitizeClip(metrics?.cssContentSize || metrics?.contentSize);
+    if (pagePlan?.expanded) {
+      if (Number.isFinite(pagePlan.originalDocumentSize?.width)) {
+        clip.width = Math.min(clip.width, Math.ceil(pagePlan.originalDocumentSize.width));
+      }
+      if (Number.isFinite(preCaptureViewport?.width)) {
+        clip.width = Math.min(clip.width, Math.ceil(preCaptureViewport.width));
+      }
+    }
     clip.scale = getCssPixelScale(metrics);
     const result = await cdp(
       tab.id,
@@ -87,14 +106,63 @@ async function captureFullPage(tab) {
       : "Full-page screenshot saved.";
     await showBadge(tab.id, "OK", "#126b55", title);
   } catch (error) {
-    await showBadge(tab.id, "!", "#d74b3f", humanizeCaptureError(error));
+    await showBadge(
+      tab.id,
+      "!",
+      "#d74b3f",
+      humanizeCaptureError(error, { tabUrl, fileAccessAllowed }),
+    );
     throw error;
   } finally {
+    if (pagePrepared) {
+      await restorePageAfterCapture(tab.id);
+    }
     if (debuggerAttached) {
       await chrome.debugger.detach({ tabId: tab.id }).catch(() => {});
     }
     activeCaptures.delete(tab.id);
   }
+}
+
+async function preparePageForCapture(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["src/capture-page.js"],
+  });
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => globalThis.__bigshootFullPageCapture?.prepare(),
+  });
+  await waitForPagePaint(tabId);
+  return result?.result;
+}
+
+async function readPageViewport(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["src/capture-page.js"],
+  });
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => globalThis.__bigshootFullPageCapture?.readStableViewport(),
+  });
+  return result?.result;
+}
+
+async function restorePageAfterCapture(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => globalThis.__bigshootFullPageCapture?.restore(),
+  }).catch(() => {});
+}
+
+async function waitForPagePaint(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    },
+  });
 }
 
 function sanitizeClip(contentSize) {
@@ -234,6 +302,14 @@ function isSupportedUrl(url = "") {
   return /^(https?|file):/i.test(url);
 }
 
+async function resolveTabUrl(tab) {
+  if (tab.url) {
+    return tab.url;
+  }
+  const latest = await chrome.tabs.get(tab.id).catch(() => null);
+  return latest?.url || "";
+}
+
 async function showBadge(tabId, text, color, title, duration = 4000) {
   if (!tabId) {
     return;
@@ -255,13 +331,15 @@ async function showBadge(tabId, text, color, title, duration = 4000) {
   }
 }
 
-function humanizeCaptureError(error) {
+function humanizeCaptureError(error, context = {}) {
   const message = normalizeError(error);
   if (/Another debugger|already attached|target is already being debugged/i.test(message)) {
     return "Close DevTools for this tab, then try again.";
   }
   if (/Cannot access|permission|not allowed/i.test(message)) {
-    return "Chrome does not allow this page to be captured.";
+    return /^file:/i.test(context.tabUrl || "") || (!context.tabUrl && !context.fileAccessAllowed)
+      ? "Enable Allow access to file URLs for Bigshoot in chrome://extensions."
+      : "Chrome does not allow this page to be captured.";
   }
   if (/timed out/i.test(message)) {
     return "The page took too long to capture. Wait for it to finish loading, then try again.";

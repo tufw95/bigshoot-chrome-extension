@@ -21,6 +21,8 @@ To change the screenshot destination, right-click the Bigshoot icon and choose *
 4. Choose the project directory containing `manifest.json`.
 5. Pin Bigshoot to the Chrome toolbar.
 
+When capturing a local `file://` page or MHTML file, open the Bigshoot entry on `chrome://extensions` and enable **Allow access to file URLs**. Chrome requires this switch for local files even when the extension declares the file host permission.
+
 Chrome does not allow capture on internal pages such as `chrome://` or the Chrome Web Store. Close DevTools on the active tab before capturing because Chrome permits only one debugger connection per tab.
 
 ## Development
@@ -51,7 +53,7 @@ docs/TEST_PLAN.md             Manual test scenarios
 - Extremely large pages may exceed Chrome's available image or GPU memory.
 - Lazy-loaded content that has not been rendered by the website may be absent.
 - Canvas, WebGL, video, and cross-origin iframe content may vary with page security policies.
-- This mode captures the document, matching full-page browser screenshot behavior; independently scrolling drawers are not expanded.
+- This mode captures the document without manual scrolling. If the page is an app shell whose document itself is viewport-sized but has one dominant visible vertical drawer or panel, Bigshoot temporarily expands that region, captures it, and restores the original layout and scroll position.
 
 ## Privacy
 

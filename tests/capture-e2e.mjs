@@ -295,6 +295,7 @@ async function copyExtension(sourceRoot, targetRoot) {
   const files = [
     "manifest.json",
     "src/background.js",
+    "src/capture-page.js",
     "src/options/options.css",
     "src/options/options.html",
     "src/options/options.js",
@@ -308,9 +309,7 @@ async function copyExtension(sourceRoot, targetRoot) {
     const target = path.join(targetRoot, file);
     await mkdir(path.dirname(target), { recursive: true });
     if (file === "manifest.json") {
-      const manifest = JSON.parse(await readFile(source, "utf8"));
-      manifest.host_permissions = ["file:///*"];
-      await writeFile(target, `${JSON.stringify(manifest, null, 2)}\n`);
+      await copyFile(source, target);
     } else if (file === "src/background.js") {
       const sourceCode = await readFile(source, "utf8");
       await writeFile(target, `${sourceCode}\nglobalThis.__bigshootTestCapture = captureFullPage;\n`);

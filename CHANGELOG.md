@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2 - 2026-08-13
+
+- Add local `file://` host access and document Chrome's required **Allow access to file URLs** switch.
+- Expand the largest visible app scroll container before capture so app shells and saved MHTML files include content below an internal drawer or panel.
+- Restore every temporary style and scroll position after capture.
+- Test the exact production manifest instead of silently adding test-only permissions.
+
 ## 1.1.1 - 2026-08-13
 
 - Reduce PNG rendering cost by capturing at CSS-pixel resolution and prioritizing Chrome's fast encoder.

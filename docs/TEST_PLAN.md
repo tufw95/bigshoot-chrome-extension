@@ -12,8 +12,10 @@
 - [ ] Click the toolbar icon and confirm capture starts immediately without a picker.
 - [ ] Press `⌘⇧6` on macOS or `Ctrl+Shift+6` elsewhere and confirm capture starts immediately.
 - [ ] Capture a page several viewports tall and confirm the final content is present.
+- [ ] Open `Chargeblast.mhtml`, capture it, and confirm the drawer's final rows are present in the PNG.
+- [ ] Repeat the `Chargeblast.mhtml` capture three times and confirm no duplicate rows or cropped bottom content.
 - [ ] Start while the page is scrolled and confirm the PNG still begins at the document top.
-- [ ] Confirm the page scroll position and DOM are not changed.
+- [ ] Confirm the page scroll position and DOM are restored after any temporary capture layout expansion.
 - [ ] On a Retina display, confirm the output uses the page's CSS-pixel dimensions for faster, lighter PNGs.
 - [ ] Confirm no `F`, parent-selection, element-selection, or modal-specific behavior remains.
 
@@ -39,3 +41,4 @@
 - [ ] Confirm a page at least 40,000 CSS px tall captures fully.
 - [ ] Confirm an extremely large page that exceeds Chrome memory returns a clear error.
 - [ ] Navigate the tab during capture and confirm no debugger connection remains attached.
+- [ ] Disable **Allow access to file URLs**, capture a local MHTML file, and confirm the badge tells the user how to enable it.
