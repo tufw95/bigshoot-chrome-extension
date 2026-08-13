@@ -14,7 +14,7 @@
 - [ ] Capture a page several viewports tall and confirm the final content is present.
 - [ ] Start while the page is scrolled and confirm the PNG still begins at the document top.
 - [ ] Confirm the page scroll position and DOM are not changed.
-- [ ] On a Retina display, confirm the output keeps native device-pixel density.
+- [ ] On a Retina display, confirm the output uses the page's CSS-pixel dimensions for faster, lighter PNGs.
 - [ ] Confirm no `F`, parent-selection, element-selection, or modal-specific behavior remains.
 
 ## Keyboard shortcut
@@ -36,5 +36,6 @@
 ## Error cases
 
 - [ ] With DevTools open on the tab, confirm Bigshoot asks the user to close DevTools.
-- [ ] Confirm a page exceeding Chrome's dimension limit returns a clear error.
+- [ ] Confirm a page at least 40,000 CSS px tall captures fully.
+- [ ] Confirm an extremely large page that exceeds Chrome memory returns a clear error.
 - [ ] Navigate the tab during capture and confirm no debugger connection remains attached.

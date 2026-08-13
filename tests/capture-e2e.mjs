@@ -65,21 +65,19 @@ try {
     height: document.documentElement.scrollHeight,
   }));
 
-  const downloadPromise = waitForNewDownload(worker);
-  await triggerToolbarCapture(worker);
-  const result = await readDownload(await downloadPromise);
+  const result = await captureDownload(worker);
   const artifact = path.join(artifactRoot, "e2e-full-page.png");
   await copyFile(result.filename, artifact);
 
-  assert.equal(result.png.width, documentSize.width * DPR, "Full-page PNG has the wrong width/DPR.");
-  assert.equal(result.png.height, documentSize.height * DPR, "Full-page PNG is cropped or has the wrong DPR.");
-  assertVerticalSequence(result.png, 30 * DPR, [
-    { color: "#153e5c", min: 710, max: 730 },
-    { color: "#f4c95d", min: 1670, max: 1690 },
-    { color: "#e86a33", min: 710, max: 730 },
-    { color: "#2b8a6e", min: 710, max: 730 },
-    { color: "#c13f5b", min: 710, max: 730 },
-    { color: "#102a30", min: 150, max: 170 },
+  assert.equal(result.png.width, documentSize.width, "Full-page PNG has the wrong CSS-pixel width.");
+  assert.equal(result.png.height, documentSize.height, "Full-page PNG is cropped or has the wrong CSS-pixel height.");
+  assertVerticalSequence(result.png, 30, [
+    { color: "#153e5c", min: 350, max: 370 },
+    { color: "#f4c95d", min: 830, max: 850 },
+    { color: "#e86a33", min: 350, max: 370 },
+    { color: "#2b8a6e", min: 350, max: 370 },
+    { color: "#c13f5b", min: 350, max: 370 },
+    { color: "#102a30", min: 70, max: 90 },
   ]);
 
   const after = await page.evaluate(() => ({
@@ -95,9 +93,31 @@ try {
   const file = await stat(artifact);
   assert(file.size > 1_000, "Full-page PNG is unexpectedly small.");
 
+  for (let iteration = 0; iteration < 10; iteration += 1) {
+    const next = await captureDownload(worker);
+    assert.equal(next.png.height, result.png.height, "Rapid capture changed the PNG height.");
+    assertVerticalSequence(next.png, 30, [
+      { color: "#153e5c", min: 350, max: 370 },
+      { color: "#f4c95d", min: 830, max: 850 },
+      { color: "#e86a33", min: 350, max: 370 },
+      { color: "#2b8a6e", min: 350, max: 370 },
+      { color: "#c13f5b", min: 350, max: 370 },
+      { color: "#102a30", min: 70, max: 90 },
+    ]);
+  }
+
+  await page.setContent(`
+    <!doctype html>
+    <style>html,body{margin:0}section{height:10000px}section:nth-child(1){background:#f00}section:nth-child(2){background:#0f0}section:nth-child(3){background:#00f}section:nth-child(4){background:#ff0}</style>
+    <section></section><section></section><section></section><section></section>
+  `);
+  const tall = await captureDownload(worker, 45_000);
+  assert.equal(tall.png.height, 40_000, "Pages above the old 32,767px limit must capture fully.");
+
   await worker.evaluate(async () => {
     await chrome.storage.sync.set({ destination: "clipboard" });
   });
+  await page.goto(fixtureUrl);
   await triggerToolbarCapture(worker);
 
   console.log(
@@ -116,14 +136,20 @@ async function triggerToolbarCapture(worker) {
   }, tab.id);
 }
 
-async function waitForNewDownload(worker) {
+async function captureDownload(worker, timeout = 30_000) {
+  const downloadPromise = waitForNewDownload(worker, timeout);
+  await triggerToolbarCapture(worker);
+  return readDownload(await downloadPromise);
+}
+
+async function waitForNewDownload(worker, timeout = 30_000) {
   const existing = new Set(await worker.evaluate(async () => (
     (await chrome.downloads.search({ orderBy: ["-startTime"], limit: 100 })).map((item) => item.id)
   )));
   return waitFor(async () => worker.evaluate(async (knownIds) => {
     const items = await chrome.downloads.search({ orderBy: ["-startTime"], limit: 100 });
     return items.find((item) => !knownIds.includes(item.id) && item.state === "complete") || null;
-  }, [...existing]), Boolean, 30_000);
+  }, [...existing]), Boolean, timeout);
 }
 
 async function readDownload(download) {

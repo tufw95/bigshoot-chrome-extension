@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = Object.freeze({
 const MENU_ID = "bigshoot-settings";
 const activeCaptures = new Set();
 const badgeResetTimers = new Map();
+const CAPTURE_TIMEOUT_MS = 20_000;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const saved = await chrome.storage.sync.get(DEFAULT_SETTINGS);
@@ -36,6 +37,7 @@ async function captureFullPage(tab) {
     return;
   }
   if (activeCaptures.has(tab.id)) {
+    await showBadge(tab.id, "...", "#0b7f8c", "A full-page capture is already in progress.", 1600);
     return;
   }
 
@@ -47,19 +49,22 @@ async function captureFullPage(tab) {
     await showBadge(tab.id, "...", "#0b7f8c", "Capturing the full page...", 0);
     await chrome.debugger.attach({ tabId: tab.id }, "1.3");
     debuggerAttached = true;
-    await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.enable");
+    await cdp(tab.id, "Page.enable");
 
-    const metrics = await waitForStableLayout(tab.id);
+    const metrics = await waitForCaptureReady(tab.id);
     const clip = sanitizeClip(metrics?.cssContentSize || metrics?.contentSize);
-    const result = await chrome.debugger.sendCommand(
-      { tabId: tab.id },
+    clip.scale = getCssPixelScale(metrics);
+    const result = await cdp(
+      tab.id,
       "Page.captureScreenshot",
       {
         format: "png",
         fromSurface: true,
         captureBeyondViewport: true,
-        clip: { ...clip, scale: 1 },
+        optimizeForSpeed: true,
+        clip,
       },
+      CAPTURE_TIMEOUT_MS,
     );
 
     if (!result?.data) {
@@ -92,16 +97,38 @@ async function captureFullPage(tab) {
   }
 }
 
-async function waitForStableLayout(tabId) {
+function sanitizeClip(contentSize) {
+  const width = Number(contentSize?.width);
+  const height = Number(contentSize?.height);
+
+  if (
+    !Number.isFinite(width)
+    || !Number.isFinite(height)
+    || width < 1
+    || height < 1
+  ) {
+    throw new Error("Chrome could not measure the full page.");
+  }
+
+  return { x: 0, y: 0, width: Math.ceil(width), height: Math.ceil(height) };
+}
+
+function getCssPixelScale(metrics) {
+  const cssWidth = Number(metrics?.cssVisualViewport?.clientWidth);
+  const deviceWidth = Number(metrics?.visualViewport?.clientWidth);
+  if (!Number.isFinite(cssWidth) || !Number.isFinite(deviceWidth) || cssWidth < 1) {
+    return 1;
+  }
+  return Math.min(1, cssWidth / deviceWidth);
+}
+
+async function waitForCaptureReady(tabId) {
   let previous = "";
   let stableSamples = 0;
   let latestMetrics;
 
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    latestMetrics = await chrome.debugger.sendCommand(
-      { tabId },
-      "Page.getLayoutMetrics",
-    );
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    latestMetrics = await cdp(tabId, "Page.getLayoutMetrics");
     const viewport = latestMetrics?.cssVisualViewport;
     const content = latestMetrics?.cssContentSize || latestMetrics?.contentSize;
     const current = [
@@ -124,34 +151,15 @@ async function waitForStableLayout(tabId) {
   return latestMetrics;
 }
 
-function sanitizeClip(contentSize) {
-  const width = Math.ceil(Number(contentSize?.width));
-  const height = Math.ceil(Number(contentSize?.height));
-  const maxDimension = 32767;
-
-  if (
-    !Number.isFinite(width)
-    || !Number.isFinite(height)
-    || width < 1
-    || height < 1
-    || width > maxDimension
-    || height > maxDimension
-  ) {
-    throw new Error(`The page size ${width}x${height} exceeds Chrome's screenshot limit.`);
-  }
-
-  return { x: 0, y: 0, width, height };
-}
-
 async function copyImageToClipboard(tabId, dataUrl) {
-  const frameTree = await chrome.debugger.sendCommand({ tabId }, "Page.getFrameTree");
+  const frameTree = await cdp(tabId, "Page.getFrameTree");
   const frameId = frameTree?.frameTree?.frame?.id;
   if (!frameId) {
     throw new Error("Chrome could not find the active page frame.");
   }
 
-  const world = await chrome.debugger.sendCommand(
-    { tabId },
+  const world = await cdp(
+    tabId,
     "Page.createIsolatedWorld",
     {
       frameId,
@@ -159,8 +167,8 @@ async function copyImageToClipboard(tabId, dataUrl) {
       grantUniveralAccess: false,
     },
   );
-  const result = await chrome.debugger.sendCommand(
-    { tabId },
+  const result = await cdp(
+    tabId,
     "Runtime.callFunctionOn",
     {
       executionContextId: world.executionContextId,
@@ -190,6 +198,24 @@ async function writeClipboardInPage(dataUrl) {
     new ClipboardItem({ "image/png": blob }),
   ]);
   return true;
+}
+
+function cdp(tabId, method, commandParams = {}, timeout = 5000) {
+  return withTimeout(
+    chrome.debugger.sendCommand({ tabId }, method, commandParams),
+    timeout,
+    `${method} timed out.`,
+  );
+}
+
+function withTimeout(promise, milliseconds, message) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), milliseconds);
+    }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 function buildFilename(title = "page") {
@@ -236,6 +262,12 @@ function humanizeCaptureError(error) {
   }
   if (/Cannot access|permission|not allowed/i.test(message)) {
     return "Chrome does not allow this page to be captured.";
+  }
+  if (/timed out/i.test(message)) {
+    return "The page took too long to capture. Wait for it to finish loading, then try again.";
+  }
+  if (/unable to capture|capture screenshot|image is too large|allocation failed|not enough memory/i.test(message)) {
+    return "This page is too large for Chrome to capture in one image.";
   }
   return message;
 }

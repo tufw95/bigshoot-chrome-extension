@@ -48,7 +48,7 @@ docs/TEST_PLAN.md             Manual test scenarios
 
 ## Technical limitations
 
-- Pages larger than 32,767 px on either axis exceed Chrome's safe screenshot limit.
+- Extremely large pages may exceed Chrome's available image or GPU memory.
 - Lazy-loaded content that has not been rendered by the website may be absent.
 - Canvas, WebGL, video, and cross-origin iframe content may vary with page security policies.
 - This mode captures the document, matching full-page browser screenshot behavior; independently scrolling drawers are not expanded.

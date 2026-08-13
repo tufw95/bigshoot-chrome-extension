@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 - 2026-08-13
+
+- Reduce PNG rendering cost by capturing at CSS-pixel resolution and prioritizing Chrome's fast encoder.
+- Remove Bigshoot's artificial 32,767 px page-height rejection; Chrome now decides the real capture limit.
+- Add command timeouts, clearer failure messages, and feedback when a capture is already running.
+- Add repeated-capture and 40,000 px page coverage to catch cropped or duplicated screenshots.
+
 ## 1.1.0 - 2026-08-13
 
 - Remove the element picker, scrollable-element capture, padding, modal detection, and all picker keyboard controls.
