@@ -14,8 +14,8 @@
         </div>
         <div>
           <p class="eyebrow">BIGSHOOT / SETTINGS</p>
-          <h1>Capture exactly what you see.</h1>
-          <p class="intro">Choose where each screenshot goes after you click an element.</p>
+          <h1>One shortcut. The whole page.</h1>
+          <p class="intro">Choose where full-page screenshots go after you press the shortcut or toolbar icon.</p>
         </div>
       </header>
 
@@ -45,21 +45,12 @@
           </label>
         </fieldset>
 
-        <div class="padding-field">
-          <div>
-            <label for="padding">Padding around the element</label>
-            <p>Keep a little surrounding space for a more natural screenshot.</p>
-          </div>
-          <output id="padding-value" for="padding">16 px</output>
-          <input id="padding" name="padding" type="range" min="0" max="48" step="4" value="16">
-        </div>
-
         <section class="command-field" aria-labelledby="command-title">
           <div class="command-copy">
             <span class="command-icon" aria-hidden="true">⌘</span>
             <div>
-              <h2 id="command-title">Open Bigshoot</h2>
-              <p>Chrome manages extension shortcuts so they keep working on every website.</p>
+              <h2 id="command-title">Capture the full page</h2>
+              <p>Pressing the shortcut immediately captures the entire active webpage.</p>
             </div>
           </div>
           <div class="command-control">
@@ -74,11 +65,9 @@
         </footer>
       </form>
 
-      <section class="shortcut-strip" aria-label="Element picker shortcuts">
-        <span><kbd>Click</kbd> Capture element</span>
-        <span><kbd>F</kbd> Capture full page or open window</span>
-        <span><kbd>↑</kbd> Select parent</span>
-        <span><kbd>Esc</kbd> Cancel</span>
+      <section class="shortcut-strip" aria-label="Capture methods">
+        <span><kbd>⌘ ⇧ 6</kbd> Capture the full page</span>
+        <span><kbd>Toolbar</kbd> Click the Bigshoot icon</span>
       </section>
     </main>
     <script src="options.js"></script>

@@ -1,20 +1,17 @@
 # Bigshoot
 
-Bigshoot is a Chrome extension that captures an entire DOM element using the familiar **Capture node screenshot** workflow from DevTools, without requiring users to open DevTools. Independently scrollable regions, such as sidebars and drawer bodies, are captured by scrolling the real region and stitching only newly revealed pixels. Bigshoot does not expand or reflow the page layout.
+Bigshoot is a focused Chrome extension for capturing the entire active webpage as a single PNG. There is no element picker, capture mode, or stitching workflow.
 
 ## How to use it
 
-1. Click the Bigshoot camera icon in the Chrome toolbar.
-2. Move the pointer to select an element. The cyan frame shows the target and expected image size.
-3. Click to capture it.
-4. Press `F` to capture the full page. If a modal, drawer, or dialog is open, `F` captures its complete scrollable content instead. Press `↑` to select the parent element, or `Esc` to cancel.
+Press `⌘⇧6` on macOS (`Ctrl+Shift+6` elsewhere), or click the Bigshoot camera icon. The full page is captured immediately, including content below the browser viewport.
 
-Press `⌘⇧6` on macOS (`Ctrl+Shift+6` elsewhere) to open Bigshoot without clicking the toolbar icon. Chrome owns extension shortcuts; use **Bigshoot settings → Change shortcut** to customize it.
+Chrome owns extension shortcuts. Use **Bigshoot settings → Change shortcut** to customize it.
 
-To change where screenshots are sent, right-click the Bigshoot icon, choose **Bigshoot settings**, then select:
+To change the screenshot destination, right-click the Bigshoot icon and choose **Bigshoot settings**:
 
-- **Save to device**: follows Chrome's current download location and **Ask where to save each file before downloading** setting.
-- **Copy to clipboard**: pastes directly into chat, documents, or design tools.
+- **Save to device** follows Chrome's download location and **Ask where to save each file before downloading** setting.
+- **Copy to clipboard** places the PNG on the system clipboard.
 
 ## Install from source
 
@@ -24,25 +21,25 @@ To change where screenshots are sent, right-click the Bigshoot icon, choose **Bi
 4. Choose the project directory containing `manifest.json`.
 5. Pin Bigshoot to the Chrome toolbar.
 
-Chrome does not allow extensions to run on internal pages such as `chrome://`, the Chrome Web Store, and some system viewers. Close DevTools on the tab before capturing because Chrome only permits one debugger connection to a tab at a time.
+Chrome does not allow capture on internal pages such as `chrome://` or the Chrome Web Store. Close DevTools on the active tab before capturing because Chrome permits only one debugger connection per tab.
 
 ## Development
 
-Node.js 20 or later is required. The extension has no runtime dependencies and does not send data to external services.
+Node.js 20 or later is required. The extension has no runtime dependencies and sends no data to external services.
 
 ```bash
 npm run check
+npm run test:capture
 npm run package
 ```
 
-The Chrome Web Store-ready archive is created at `dist/bigshoot-<version>.zip`.
+The Chrome Web Store archive is created at `dist/bigshoot-<version>.zip`.
 
 ## Project structure
 
 ```text
 manifest.json                 Manifest V3 configuration and permissions
-src/background.js             Capture, download, and clipboard coordination
-src/picker.js                 In-page element picker
+src/background.js             Full-page capture and destination coordination
 src/options/                  Settings page
 icons/                        Extension icons
 docs/STORE_SUBMISSION.md      Internal publishing checklist
@@ -51,10 +48,10 @@ docs/TEST_PLAN.md             Manual test scenarios
 
 ## Technical limitations
 
-- Pages or elements larger than 32,767 px on either axis may be limited by Chrome or the GPU rendering pipeline.
-- Lazy-loaded content that appears only after scrolling must be loaded before capture.
-- Canvas, WebGL, video, and cross-origin iframe content may behave differently depending on the page's security policies.
-- Virtualized lists may only expose rows that the website renders while Bigshoot scrolls through them.
+- Pages larger than 32,767 px on either axis exceed Chrome's safe screenshot limit.
+- Lazy-loaded content that has not been rendered by the website may be absent.
+- Canvas, WebGL, video, and cross-origin iframe content may vary with page security policies.
+- This mode captures the document, matching full-page browser screenshot behavior; independently scrolling drawers are not expanded.
 
 ## Privacy
 

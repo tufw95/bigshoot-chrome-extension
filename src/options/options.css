@@ -227,43 +227,6 @@ legend {
   background: #fff;
 }
 
-.padding-field {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px 24px;
-  padding: 16px 30px 18px;
-  border-top: 1px solid #e3eceb;
-}
-
-.padding-field label {
-  font-weight: 700;
-}
-
-.padding-field p {
-  margin: 5px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.padding-field output {
-  align-self: start;
-  min-width: 58px;
-  padding: 5px 8px;
-  color: var(--aqua-deep);
-  background: var(--aqua-soft);
-  border-radius: 7px;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.padding-field input {
-  grid-column: 1 / -1;
-  width: 100%;
-  accent-color: var(--aqua-deep);
-}
-
 .command-field {
   display: flex;
   justify-content: space-between;
@@ -441,7 +404,6 @@ kbd {
   }
 
   fieldset,
-  .padding-field,
   .command-field {
     padding: 22px 18px;
   }

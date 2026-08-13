@@ -1,11 +1,8 @@
 const DEFAULT_SETTINGS = {
   destination: "download",
-  padding: 16,
 };
 
 const form = document.querySelector("#settings-form");
-const paddingInput = document.querySelector("#padding");
-const paddingValue = document.querySelector("#padding-value");
 const status = document.querySelector("#status");
 const commandShortcut = document.querySelector("#command-shortcut");
 const changeShortcutButton = document.querySelector("#change-shortcut");
@@ -13,7 +10,6 @@ const changeShortcutButton = document.querySelector("#change-shortcut");
 restoreSettings();
 restoreShortcut();
 
-paddingInput.addEventListener("input", updatePaddingLabel);
 form.addEventListener("submit", saveSettings);
 changeShortcutButton.addEventListener("click", openShortcutSettings);
 window.addEventListener("focus", restoreShortcut);
@@ -24,8 +20,6 @@ async function restoreSettings() {
   for (const radio of destination) {
     radio.checked = radio.value === settings.destination;
   }
-  paddingInput.value = settings.padding;
-  updatePaddingLabel();
 }
 
 async function saveSettings(event) {
@@ -33,18 +27,12 @@ async function saveSettings(event) {
   const destination = new FormData(form).get("destination");
   await chrome.storage.sync.set({
     destination,
-    padding: Number(paddingInput.value),
   });
 
   status.textContent = "Saved. Your next capture will use this setting.";
   setTimeout(() => {
     status.textContent = "";
   }, 3500);
-}
-
-function updatePaddingLabel() {
-  paddingValue.value = `${paddingInput.value} px`;
-  paddingValue.textContent = `${paddingInput.value} px`;
 }
 
 async function restoreShortcut() {

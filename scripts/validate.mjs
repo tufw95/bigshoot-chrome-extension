@@ -6,7 +6,6 @@ const requiredFiles = [
   manifest.background.service_worker,
   manifest.options_ui.page,
   ...Object.values(manifest.icons),
-  "src/picker.js",
 ];
 
 for (const file of new Set(requiredFiles)) {
@@ -19,6 +18,14 @@ if (manifest.manifest_version !== 3) {
 
 if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) {
   throw new Error("Manifest version must use x.y.z format.");
+}
+
+if (manifest.permissions.includes("scripting")) {
+  throw new Error("The simplified extension must not request the scripting permission.");
+}
+
+if (!manifest.permissions.includes("debugger")) {
+  throw new Error("Full-page capture requires the debugger permission.");
 }
 
 console.log(`Validated ${manifest.name} v${manifest.version}`);

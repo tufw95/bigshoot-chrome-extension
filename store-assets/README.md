@@ -2,8 +2,7 @@
 
 The following assets are ready for the Bigshoot listing:
 
-- `screenshots/picker-1280x800.png`: the pointer-based picker selecting a scrollable sidebar.
-- `screenshots/settings-1280x800.png`: download/clipboard, padding, and keyboard shortcut settings.
 - `../icons/icon-128.png`: the 128 x 128 icon for the developer dashboard.
+- `screenshots/settings-1280x800.png`: the current full-page settings screen.
 
-Do not resize the screenshots or add borders before uploading them to the Chrome Web Store.
+An optional second 1280 x 800 screenshot can show the resulting full-page PNG.

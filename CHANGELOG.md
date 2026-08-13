@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 - 2026-08-13
+
+- Remove the element picker, scrollable-element capture, padding, modal detection, and all picker keyboard controls.
+- Make the toolbar icon and default keyboard shortcut capture the entire document immediately.
+- Use a single Chrome DevTools Protocol full-page capture without scrolling or modifying the webpage.
+- Write clipboard images through the active page's focused browser context.
+- Remove the `scripting` permission and all packaged picker code.
+
 ## 1.0.4 - 2026-08-12
 
 - Replace layout expansion with deterministic scroll-and-stitch capture for independently scrollable elements and open windows.
