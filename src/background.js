@@ -75,7 +75,6 @@ async function captureFullPage(tab) {
 
     pagePrepared = true;
     const pagePlan = await preparePageForCapture(tab.id);
-
     let metrics = await waitForCaptureReady(tab.id);
     let clip = clampCaptureClip(
       sanitizeClip(metrics?.cssContentSize || metrics?.contentSize),
@@ -109,7 +108,16 @@ async function captureFullPage(tab) {
 
     const dataUrl = `data:image/png;base64,${result.data}`;
     if (settings.destination === "clipboard") {
-      await copyImageToClipboard(tab.id, dataUrl);
+      try {
+        await copyImageInActivePage(tab.id, dataUrl);
+      } catch {
+        // Local files and locked-down pages may reject the active-page Clipboard API.
+        // Release the debugger before using the focused extension popup fallback.
+        await releaseCaptureResources(tab.id, { pagePrepared, debuggerAttached });
+        pagePrepared = false;
+        debuggerAttached = false;
+        await copyImageInFocusedPopup(dataUrl);
+      }
       await releaseCaptureResources(tab.id, { pagePrepared, debuggerAttached });
       pagePrepared = false;
       debuggerAttached = false;
@@ -129,7 +137,11 @@ async function captureFullPage(tab) {
     const title = settings.destination === "clipboard"
       ? "Full-page screenshot copied to the clipboard."
       : "Full-page screenshot saved.";
-    await showBadge(tab.id, "OK", "#126b55", title);
+    await showCaptureToast(
+      tab.id,
+      settings.destination === "clipboard" ? "Copied to clipboard" : "Saved to device",
+    );
+    await showBadge(tab.id, "OK", "#126b55", title, 2200);
   } catch (error) {
     await showBadge(
       tab.id,
@@ -182,16 +194,81 @@ async function restorePageAfterCapture(tabId) {
 }
 
 async function releaseCaptureResources(tabId, state) {
-  if (state.pagePrepared) {
-    await restorePageAfterCapture(tabId);
-  }
   if (state.debuggerAttached) {
     await detachDebugger(tabId);
+  }
+  if (state.pagePrepared) {
+    await restorePageAfterCapture(tabId);
   }
 }
 
 async function detachDebugger(tabId) {
   await chrome.debugger.detach({ tabId }).catch(() => {});
+}
+
+async function showCaptureToast(tabId, message) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (toastMessage) => {
+      const existing = document.querySelector("#bigshoot-capture-toast");
+      existing?.remove();
+
+      const toast = document.createElement("div");
+      toast.id = "bigshoot-capture-toast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      toast.style.cssText = [
+        "position:fixed",
+        "right:20px",
+        "bottom:20px",
+        "z-index:2147483647",
+        "display:flex",
+        "align-items:center",
+        "gap:10px",
+        "max-width:min(360px,calc(100vw - 40px))",
+        "padding:12px 15px",
+        "color:#f5f1e8",
+        "background:#111820",
+        "border:1px solid rgba(186,244,216,.5)",
+        "border-radius:10px",
+        "box-shadow:0 12px 30px rgba(17,24,32,.24)",
+        "font:600 13px/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif",
+        "letter-spacing:.01em",
+        "opacity:0",
+        "transform:translateY(8px)",
+      ].join(";");
+
+      const icon = document.createElement("span");
+      icon.textContent = "OK";
+      icon.style.cssText = "display:grid;place-items:center;min-width:26px;height:26px;color:#111820;background:#baf4d8;border-radius:50%;font:700 9px/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;letter-spacing:.04em";
+      const copy = document.createElement("span");
+      copy.textContent = toastMessage;
+      toast.append(icon, copy);
+      document.documentElement.append(toast);
+
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reducedMotion) {
+        toast.style.opacity = "1";
+      } else {
+        requestAnimationFrame(() => {
+          toast.style.transition = "opacity 180ms ease, transform 180ms ease";
+          toast.style.opacity = "1";
+          toast.style.transform = "translateY(0)";
+        });
+      }
+
+      const hide = () => {
+        if (!toast.isConnected) {
+          return;
+        }
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(8px)";
+        setTimeout(() => toast.remove(), reducedMotion ? 0 : 200);
+      };
+      setTimeout(hide, 2200);
+    },
+    args: [message],
+  }).catch(() => {});
 }
 
 async function waitForPagePaint(tabId) {
@@ -330,14 +407,6 @@ async function waitForCaptureReady(tabId) {
   }
 
   return latestMetrics;
-}
-
-async function copyImageToClipboard(tabId, dataUrl) {
-  try {
-    await copyImageInActivePage(tabId, dataUrl);
-  } catch {
-    await copyImageInFocusedPopup(dataUrl);
-  }
 }
 
 async function copyImageInActivePage(tabId, dataUrl) {

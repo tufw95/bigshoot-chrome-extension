@@ -8,7 +8,7 @@ This guide covers **Private** distribution to users in the same Google Workspace
 npm run package
 ```
 
-Output: `dist/bigshoot-1.1.4.zip`.
+Output: `dist/bigshoot-1.1.5.zip`.
 
 The Chrome Web Store does not accept the same version number twice. Update `manifest.json`, `package.json`, and `CHANGELOG.md` before later releases.
 

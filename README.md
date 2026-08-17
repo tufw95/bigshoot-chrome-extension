@@ -13,6 +13,8 @@ To change the screenshot destination, right-click the Bigshoot icon and choose *
 - **Save to device** follows Chrome's download location and **Ask where to save each file before downloading** setting.
 - **Copy to clipboard** places the PNG on the system clipboard.
 
+Bigshoot confirms successful captures with a short toast in the bottom-right corner of the webpage.
+
 ## Install from source
 
 1. Open `chrome://extensions`.
@@ -51,6 +53,7 @@ docs/TEST_PLAN.md             Manual test scenarios
 ## Technical limitations
 
 - Extremely large pages may exceed Chrome's available image or GPU memory.
+- Chrome may animate its own debugger infobar for a short moment after a capture; Bigshoot detaches as soon as the PNG is ready, but the browser controls the infobar animation.
 - Bigshoot warms lazy-rendered content by scrolling through the page before capture, but content that the website never renders may still be absent.
 - Canvas, WebGL, video, and cross-origin iframe content may vary with page security policies.
 - If the page is an app shell whose document itself is viewport-sized but has one dominant visible vertical drawer or panel, Bigshoot temporarily expands that region, warms it by scrolling, captures it, and restores the original layout and scroll position.

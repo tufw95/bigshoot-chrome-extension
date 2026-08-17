@@ -96,10 +96,13 @@ try {
     const latest = await chrome.tabs.get(tabId);
     await globalThis.__bigshootTestCapture(latest);
   }, clipboardTab.id);
+  const clipboardToast = page.locator("#bigshoot-capture-toast");
+  await clipboardToast.waitFor({ state: "visible" });
+  assert.match(await clipboardToast.innerText(), /Copied to clipboard/);
 
   const averageDuration = Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
   assert(averageDuration < 3_000, `Packaged captures averaged ${averageDuration}ms.`);
-  console.log(`Package E2E passed: exact ZIP manifest, file access, clipboard, 3 Chargeblast captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average.`);
+  console.log(`Package E2E passed: exact ZIP manifest, file access, clipboard toast, 3 Chargeblast captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average.`);
 } finally {
   await context.close();
 }

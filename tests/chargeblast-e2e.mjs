@@ -91,9 +91,12 @@ try {
 
   await worker.evaluate(async () => chrome.storage.sync.set({ destination: "clipboard" }));
   await triggerCapture(worker);
+  const clipboardToast = page.locator("#bigshoot-capture-toast");
+  await clipboardToast.waitFor({ state: "visible" });
+  assert.match(await clipboardToast.innerText(), /Copied to clipboard/);
 
   const averageDuration = Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
-  console.log(`Chargeblast E2E passed: 3 captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average, clipboard, drawer included, page restored.`);
+  console.log(`Chargeblast E2E passed: 3 captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average, clipboard toast, drawer included, page restored.`);
 } finally {
   await context.close();
 }

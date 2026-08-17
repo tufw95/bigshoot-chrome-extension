@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.5 - 2026-08-17
+
+- Add an in-page success toast for device downloads and clipboard copies.
+- Detach the debugger before restoring the page and before the clipboard popup fallback so Chrome's debugger infobar can clear sooner.
+
 ## 1.1.4 - 2026-08-17
 
 - Crop fullscreen app captures to the visible top layer so an underlying sidebar is not included.

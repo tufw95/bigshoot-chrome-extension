@@ -126,9 +126,12 @@ try {
   });
   await page.goto(fixtureUrl);
   await triggerToolbarCapture(worker);
+  const clipboardToast = page.locator("#bigshoot-capture-toast");
+  await clipboardToast.waitFor({ state: "visible" });
+  assert.match(await clipboardToast.innerText(), /Copied to clipboard/);
 
   console.log(
-    `Capture E2E passed: one-click full page ${result.png.width}x${result.png.height}, clipboard, no DOM or scroll changes.`,
+    `Capture E2E passed: one-click full page ${result.png.width}x${result.png.height}, clipboard toast, no DOM or scroll changes.`,
   );
 } finally {
   await context.close();

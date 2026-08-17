@@ -1,6 +1,6 @@
 {
   "name": "bigshoot-chrome-extension",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "private": true,
   "description": "Chrome extension for one-click full-page screenshots.",
   "scripts": {
