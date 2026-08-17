@@ -26,6 +26,10 @@ assert.equal(unzip.status, 0, unzip.stderr || "Could not extract package.");
 
 const packagedManifest = JSON.parse(await readFile(path.join(extensionRoot, "manifest.json"), "utf8"));
 assert.deepEqual(packagedManifest, manifest, "Packaged manifest differs from the production manifest.");
+await Promise.all([
+  access(path.join(extensionRoot, "src/clipboard.html")),
+  access(path.join(extensionRoot, "src/clipboard.js")),
+]);
 const backgroundPath = path.join(extensionRoot, "src/background.js");
 const background = await readFile(backgroundPath, "utf8");
 await writeFile(backgroundPath, `${background}\nglobalThis.__bigshootTestCapture = captureFullPage;\n`);
@@ -79,16 +83,23 @@ try {
     const current = { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
     dimensions ||= current;
     assert.deepEqual(current, dimensions, `Packaged Chargeblast capture ${iteration + 1} changed dimensions.`);
-    assert.equal(current.width, 1440, "Packaged Chargeblast PNG has the wrong width.");
-    assert(current.height >= 1210, `Packaged Chargeblast PNG is cropped at ${current.height}px.`);
+    assert.equal(current.width, 2880, "Packaged Chargeblast PNG does not use native Retina width.");
+    assert(current.height >= 2420, `Packaged Chargeblast PNG is cropped at ${current.height}px.`);
     if (iteration === 0) {
       await mkdir(artifactRoot, { recursive: true });
       await copyFile(download.filename, path.join(artifactRoot, "chargeblast-package-e2e.png"));
     }
   }
+  await worker.evaluate(async () => chrome.storage.sync.set({ destination: "clipboard" }));
+  const [clipboardTab] = await worker.evaluate(async () => chrome.tabs.query({ active: true, currentWindow: true }));
+  await worker.evaluate(async (tabId) => {
+    const latest = await chrome.tabs.get(tabId);
+    await globalThis.__bigshootTestCapture(latest);
+  }, clipboardTab.id);
+
   const averageDuration = Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
   assert(averageDuration < 3_000, `Packaged captures averaged ${averageDuration}ms.`);
-  console.log(`Package E2E passed: exact ZIP manifest, file access, 3 Chargeblast captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average.`);
+  console.log(`Package E2E passed: exact ZIP manifest, file access, clipboard, 3 Chargeblast captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average.`);
 } finally {
   await context.close();
 }

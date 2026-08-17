@@ -9,11 +9,13 @@
     changes: [],
     scrollPositions: [],
     viewportWidth: null,
+    windowScroll: null,
   };
 
   globalThis[GLOBAL_KEY] = {
     prepare,
     readStableViewport,
+    scrollTo,
     restore,
   };
 
@@ -26,6 +28,8 @@
 
   function prepare() {
     restore();
+    state.windowScroll = { x: scrollX, y: scrollY };
+    setStyle(document.documentElement, "scroll-behavior", "auto");
     const originalDocumentSize = readDocumentSize();
     if (originalDocumentSize.height > innerHeight + 2) {
       return {
@@ -78,6 +82,36 @@
       }
     }
     state.scrollPositions = [];
+
+    if (state.windowScroll) {
+      const target = state.windowScroll;
+      const html = document.documentElement;
+      const styleAttributeExisted = html.hasAttribute("style");
+      const behavior = html.style.getPropertyValue("scroll-behavior");
+      const priority = html.style.getPropertyPriority("scroll-behavior");
+      html.style.setProperty("scroll-behavior", "auto", "important");
+      window.scrollTo(target.x, target.y);
+      if (behavior) {
+        html.style.setProperty("scroll-behavior", behavior, priority);
+      } else {
+        html.style.removeProperty("scroll-behavior");
+      }
+      if (!styleAttributeExisted && !html.getAttribute("style")) {
+        html.removeAttribute("style");
+      }
+      state.windowScroll = null;
+    }
+  }
+
+  async function scrollTo(x, y) {
+    window.scrollTo(Number(x) || 0, Number(y) || 0);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return {
+      x: window.scrollX,
+      y: window.scrollY,
+      width: innerWidth,
+      height: innerHeight,
+    };
   }
 
   function findDominantVerticalScroller() {

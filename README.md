@@ -4,7 +4,7 @@ Bigshoot is a focused Chrome extension for capturing the entire active webpage a
 
 ## How to use it
 
-Press `⌘⇧6` on macOS (`Ctrl+Shift+6` elsewhere), or click the Bigshoot camera icon. The full page is captured immediately, including content below the browser viewport.
+Press `⌘⇧6` on macOS (`Ctrl+Shift+6` elsewhere), or click the Bigshoot camera icon. Bigshoot briefly scrolls through the page to wake lazy-rendered content, then captures the complete page at the display's native pixel density.
 
 Chrome owns extension shortcuts. Use **Bigshoot settings → Change shortcut** to customize it.
 
@@ -51,9 +51,10 @@ docs/TEST_PLAN.md             Manual test scenarios
 ## Technical limitations
 
 - Extremely large pages may exceed Chrome's available image or GPU memory.
-- Lazy-loaded content that has not been rendered by the website may be absent.
+- Bigshoot warms lazy-rendered content by scrolling through the page before capture, but content that the website never renders may still be absent.
 - Canvas, WebGL, video, and cross-origin iframe content may vary with page security policies.
-- This mode captures the document without manual scrolling. If the page is an app shell whose document itself is viewport-sized but has one dominant visible vertical drawer or panel, Bigshoot temporarily expands that region, captures it, and restores the original layout and scroll position.
+- If the page is an app shell whose document itself is viewport-sized but has one dominant visible vertical drawer or panel, Bigshoot temporarily expands that region, warms it by scrolling, captures it, and restores the original layout and scroll position.
+- Normal pages use native Retina/device pixels. Extremely large pages automatically fall back to a safer CSS-pixel scale when Chrome's image-memory limits require it.
 
 ## Privacy
 

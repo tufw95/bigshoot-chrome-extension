@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.3 - 2026-08-17
+
+- Warm the page by scrolling through its content before capture so lazy-rendered sections are present and the interaction feels like a real full-page capture.
+- Restore the original document scroll position and `scroll-behavior` after the warm-up pass.
+- Capture normal pages at native device-pixel density for sharper Retina screenshots; use a safer CSS-pixel scale only for very large images.
+- Add a focused popup fallback for clipboard writes that are blocked on local MHTML/file pages.
+- Add E2E coverage for native dimensions, scrolling warm-up, local MHTML clipboard, and the packaged clipboard helper.
+
 ## 1.1.2 - 2026-08-13
 
 - Add local `file://` host access and document Chrome's required **Allow access to file URLs** switch.

@@ -52,6 +52,10 @@ try {
   await worker.evaluate(async () => {
     await chrome.storage.sync.set({ destination: "download" });
   });
+  await page.evaluate(() => {
+    window.__bigshootScrollSamples = [];
+    window.addEventListener("scroll", () => window.__bigshootScrollSamples.push(window.scrollY), { passive: true });
+  });
 
   const before = await page.evaluate(() => ({
     scrollX: window.scrollX,
@@ -69,15 +73,15 @@ try {
   const artifact = path.join(artifactRoot, "e2e-full-page.png");
   await copyFile(result.filename, artifact);
 
-  assert.equal(result.png.width, documentSize.width, "Full-page PNG has the wrong CSS-pixel width.");
-  assert.equal(result.png.height, documentSize.height, "Full-page PNG is cropped or has the wrong CSS-pixel height.");
-  assertVerticalSequence(result.png, 30, [
-    { color: "#153e5c", min: 350, max: 370 },
-    { color: "#f4c95d", min: 830, max: 850 },
-    { color: "#e86a33", min: 350, max: 370 },
-    { color: "#2b8a6e", min: 350, max: 370 },
-    { color: "#c13f5b", min: 350, max: 370 },
-    { color: "#102a30", min: 70, max: 90 },
+  assert.equal(result.png.width, documentSize.width * DPR, "Full-page PNG does not use native Retina width.");
+  assert.equal(result.png.height, documentSize.height * DPR, "Full-page PNG is cropped or does not use native Retina height.");
+  assertVerticalSequence(result.png, 30 * DPR, [
+    { color: "#153e5c", min: 350 * DPR, max: 370 * DPR },
+    { color: "#f4c95d", min: 830 * DPR, max: 850 * DPR },
+    { color: "#e86a33", min: 350 * DPR, max: 370 * DPR },
+    { color: "#2b8a6e", min: 350 * DPR, max: 370 * DPR },
+    { color: "#c13f5b", min: 350 * DPR, max: 370 * DPR },
+    { color: "#102a30", min: 70 * DPR, max: 90 * DPR },
   ]);
 
   const after = await page.evaluate(() => ({
@@ -89,6 +93,9 @@ try {
     pickerRoot: Boolean(document.querySelector("#bigshoot-extension-root")),
   }));
   assert.deepEqual(after, { ...before, pickerRoot: false }, "Capture changed the webpage or injected a picker.");
+  const scrollSamples = await page.evaluate(() => window.__bigshootScrollSamples || []);
+  assert(scrollSamples.some((value) => value > 0), "Capture did not warm the page by scrolling through its content.");
+  assert.equal(await page.evaluate(() => window.scrollY), before.scrollY, "Capture did not restore the original scroll position.");
 
   const file = await stat(artifact);
   assert(file.size > 1_000, "Full-page PNG is unexpectedly small.");
@@ -96,13 +103,13 @@ try {
   for (let iteration = 0; iteration < 10; iteration += 1) {
     const next = await captureDownload(worker);
     assert.equal(next.png.height, result.png.height, "Rapid capture changed the PNG height.");
-    assertVerticalSequence(next.png, 30, [
-      { color: "#153e5c", min: 350, max: 370 },
-      { color: "#f4c95d", min: 830, max: 850 },
-      { color: "#e86a33", min: 350, max: 370 },
-      { color: "#2b8a6e", min: 350, max: 370 },
-      { color: "#c13f5b", min: 350, max: 370 },
-      { color: "#102a30", min: 70, max: 90 },
+    assertVerticalSequence(next.png, 30 * DPR, [
+      { color: "#153e5c", min: 350 * DPR, max: 370 * DPR },
+      { color: "#f4c95d", min: 830 * DPR, max: 850 * DPR },
+      { color: "#e86a33", min: 350 * DPR, max: 370 * DPR },
+      { color: "#2b8a6e", min: 350 * DPR, max: 370 * DPR },
+      { color: "#c13f5b", min: 350 * DPR, max: 370 * DPR },
+      { color: "#102a30", min: 70 * DPR, max: 90 * DPR },
     ]);
   }
 
@@ -296,6 +303,8 @@ async function copyExtension(sourceRoot, targetRoot) {
     "manifest.json",
     "src/background.js",
     "src/capture-page.js",
+    "src/clipboard.html",
+    "src/clipboard.js",
     "src/options/options.css",
     "src/options/options.html",
     "src/options/options.js",

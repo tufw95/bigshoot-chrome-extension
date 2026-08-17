@@ -5,7 +5,13 @@ const DEFAULT_SETTINGS = Object.freeze({
 const MENU_ID = "bigshoot-settings";
 const activeCaptures = new Set();
 const badgeResetTimers = new Map();
+const clipboardPayloads = new Map();
 const CAPTURE_TIMEOUT_MS = 20_000;
+const CLIPBOARD_TIMEOUT_MS = 1_500;
+const WARM_SCROLL_SETTLE_MS = 45;
+const MAX_WARM_SCROLL_STEPS = 16;
+const MAX_NATIVE_PIXELS = 50_000_000;
+const MAX_CAPTURE_DIMENSION = 32_767;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const saved = await chrome.storage.sync.get(DEFAULT_SETTINGS);
@@ -19,6 +25,14 @@ chrome.runtime.onInstalled.addListener(async () => {
       contexts: ["action"],
     });
   });
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== "BIGSHOOT_CLIPBOARD_REQUEST") {
+    return false;
+  }
+  sendResponse({ dataUrl: clipboardPayloads.get(message.token) || null });
+  return false;
 });
 
 chrome.contextMenus.onClicked.addListener((info) => {
@@ -62,17 +76,20 @@ async function captureFullPage(tab) {
     pagePrepared = true;
     const pagePlan = await preparePageForCapture(tab.id);
 
-    const metrics = await waitForCaptureReady(tab.id);
-    const clip = sanitizeClip(metrics?.cssContentSize || metrics?.contentSize);
-    if (pagePlan?.expanded) {
-      if (Number.isFinite(pagePlan.originalDocumentSize?.width)) {
-        clip.width = Math.min(clip.width, Math.ceil(pagePlan.originalDocumentSize.width));
-      }
-      if (Number.isFinite(preCaptureViewport?.width)) {
-        clip.width = Math.min(clip.width, Math.ceil(preCaptureViewport.width));
-      }
-    }
-    clip.scale = getCssPixelScale(metrics);
+    let metrics = await waitForCaptureReady(tab.id);
+    let clip = clampCaptureClip(
+      sanitizeClip(metrics?.cssContentSize || metrics?.contentSize),
+      pagePlan,
+      preCaptureViewport,
+    );
+    await warmPageByScrolling(tab.id, metrics, clip);
+    metrics = await waitForCaptureReady(tab.id);
+    clip = clampCaptureClip(
+      sanitizeClip(metrics?.cssContentSize || metrics?.contentSize),
+      pagePlan,
+      preCaptureViewport,
+    );
+    clip.scale = getCaptureScale(metrics, clip);
     const result = await cdp(
       tab.id,
       "Page.captureScreenshot",
@@ -181,6 +198,19 @@ function sanitizeClip(contentSize) {
   return { x: 0, y: 0, width: Math.ceil(width), height: Math.ceil(height) };
 }
 
+function clampCaptureClip(clip, pagePlan, viewport) {
+  if (!pagePlan?.expanded) {
+    return clip;
+  }
+  if (Number.isFinite(pagePlan.originalDocumentSize?.width)) {
+    clip.width = Math.min(clip.width, Math.ceil(pagePlan.originalDocumentSize.width));
+  }
+  if (Number.isFinite(viewport?.width)) {
+    clip.width = Math.min(clip.width, Math.ceil(viewport.width));
+  }
+  return clip;
+}
+
 function getCssPixelScale(metrics) {
   const cssWidth = Number(metrics?.cssVisualViewport?.clientWidth);
   const deviceWidth = Number(metrics?.visualViewport?.clientWidth);
@@ -188,6 +218,62 @@ function getCssPixelScale(metrics) {
     return 1;
   }
   return Math.min(1, cssWidth / deviceWidth);
+}
+
+function getDevicePixelRatio(metrics) {
+  const cssWidth = Number(metrics?.cssVisualViewport?.clientWidth);
+  const deviceWidth = Number(metrics?.visualViewport?.clientWidth);
+  if (!Number.isFinite(cssWidth) || !Number.isFinite(deviceWidth) || cssWidth < 1) {
+    return 1;
+  }
+  return Math.max(1, deviceWidth / cssWidth);
+}
+
+function getCaptureScale(metrics, clip) {
+  const devicePixelRatio = getDevicePixelRatio(metrics);
+  const nativeWidth = clip.width * devicePixelRatio;
+  const nativeHeight = clip.height * devicePixelRatio;
+  if (
+    nativeWidth <= MAX_CAPTURE_DIMENSION
+    && nativeHeight <= MAX_CAPTURE_DIMENSION
+    && nativeWidth * nativeHeight <= MAX_NATIVE_PIXELS
+  ) {
+    return 1;
+  }
+  return getCssPixelScale(metrics);
+}
+
+async function warmPageByScrolling(tabId, metrics, clip) {
+  const viewportHeight = Number(metrics?.cssVisualViewport?.clientHeight);
+  const pageHeight = Number(clip?.height);
+  if (!Number.isFinite(viewportHeight) || !Number.isFinite(pageHeight) || pageHeight <= viewportHeight + 2) {
+    await scrollPageTo(tabId, 0, 0);
+    return;
+  }
+
+  const maxScroll = Math.max(0, pageHeight - viewportHeight);
+  const stepCount = Math.min(
+    MAX_WARM_SCROLL_STEPS,
+    Math.max(1, Math.ceil(maxScroll / Math.max(480, viewportHeight * 0.85))),
+  );
+  const positions = [];
+  for (let index = 0; index <= stepCount; index += 1) {
+    positions.push(Math.round((maxScroll * index) / stepCount));
+  }
+
+  for (const y of positions) {
+    await scrollPageTo(tabId, 0, y);
+    await new Promise((resolve) => setTimeout(resolve, WARM_SCROLL_SETTLE_MS));
+  }
+  await scrollPageTo(tabId, 0, 0);
+}
+
+async function scrollPageTo(tabId, x, y) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async (targetX, targetY) => globalThis.__bigshootFullPageCapture?.scrollTo(targetX, targetY),
+    args: [x, y],
+  });
 }
 
 async function waitForCaptureReady(tabId) {
@@ -209,43 +295,50 @@ async function waitForCaptureReady(tabId) {
     ].join(":");
 
     stableSamples = current === previous ? stableSamples + 1 : 0;
-    if (stableSamples >= 2) {
+    if (stableSamples >= 1) {
       return latestMetrics;
     }
     previous = current;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   return latestMetrics;
 }
 
 async function copyImageToClipboard(tabId, dataUrl) {
-  const frameTree = await cdp(tabId, "Page.getFrameTree");
-  const frameId = frameTree?.frameTree?.frame?.id;
-  if (!frameId) {
-    throw new Error("Chrome could not find the active page frame.");
+  try {
+    await copyImageInActivePage(tabId, dataUrl);
+  } catch {
+    await copyImageInFocusedPopup(dataUrl);
   }
+}
 
-  const world = await cdp(
+async function copyImageInActivePage(tabId, dataUrl) {
+  const pageGlobal = await cdp(
     tabId,
-    "Page.createIsolatedWorld",
+    "Runtime.evaluate",
     {
-      frameId,
-      worldName: "Bigshoot clipboard",
-      grantUniveralAccess: false,
+      expression: "globalThis",
+      returnByValue: false,
+      userGesture: true,
     },
   );
+  const objectId = pageGlobal?.result?.objectId;
+  if (!objectId) {
+    throw new Error("Chrome could not access the active page context.");
+  }
   const result = await cdp(
     tabId,
     "Runtime.callFunctionOn",
     {
-      executionContextId: world.executionContextId,
+      objectId,
       functionDeclaration: writeClipboardInPage.toString(),
       arguments: [{ value: dataUrl }],
       awaitPromise: true,
       returnByValue: true,
       userGesture: true,
     },
+    CLIPBOARD_TIMEOUT_MS,
   );
 
   if (result?.exceptionDetails || result?.result?.value !== true) {
@@ -256,14 +349,62 @@ async function copyImageToClipboard(tabId, dataUrl) {
   }
 }
 
+async function copyImageInFocusedPopup(dataUrl) {
+  const token = `clipboard-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const resultPromise = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.runtime.onMessage.removeListener(listener);
+      reject(new Error("Chrome could not copy the PNG to the clipboard."));
+    }, CLIPBOARD_TIMEOUT_MS * 4);
+
+    function listener(message) {
+      if (message?.type !== "BIGSHOOT_CLIPBOARD_RESULT" || message.token !== token) {
+        return;
+      }
+      clearTimeout(timer);
+      chrome.runtime.onMessage.removeListener(listener);
+      if (message.ok) {
+        resolve(true);
+      } else {
+        reject(new Error(message.error || "Chrome could not copy the PNG to the clipboard."));
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(listener);
+  });
+
+  clipboardPayloads.set(token, dataUrl);
+  let popup;
+
+  try {
+    popup = await chrome.windows.create({
+      url: `${chrome.runtime.getURL("src/clipboard.html")}#${encodeURIComponent(token)}`,
+      type: "popup",
+      focused: true,
+      width: 160,
+      height: 80,
+    });
+    await resultPromise;
+  } finally {
+    clipboardPayloads.delete(token);
+    if (popup?.id) {
+      await chrome.windows.remove(popup.id).catch(() => {});
+    }
+  }
+}
+
 async function writeClipboardInPage(dataUrl) {
   if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
     throw new Error("The Clipboard API is unavailable on this page.");
   }
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
+  const png = fetch(dataUrl).then(async (response) => {
+    if (!response.ok) {
+      throw new Error("Chrome could not decode the captured PNG.");
+    }
+    return response.blob();
+  });
   await navigator.clipboard.write([
-    new ClipboardItem({ "image/png": blob }),
+    new ClipboardItem({ "image/png": png }),
   ]);
   return true;
 }

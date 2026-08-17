@@ -16,7 +16,8 @@
 - [ ] Repeat the `Chargeblast.mhtml` capture three times and confirm no duplicate rows or cropped bottom content.
 - [ ] Start while the page is scrolled and confirm the PNG still begins at the document top.
 - [ ] Confirm the page scroll position and DOM are restored after any temporary capture layout expansion.
-- [ ] On a Retina display, confirm the output uses the page's CSS-pixel dimensions for faster, lighter PNGs.
+- [ ] On a Retina display, confirm a normal page uses native device-pixel dimensions and remains sharp when zoomed in.
+- [ ] Confirm Bigshoot visibly warms the page by scrolling through it, then restores the original scroll position.
 - [ ] Confirm no `F`, parent-selection, element-selection, or modal-specific behavior remains.
 
 ## Keyboard shortcut
@@ -39,6 +40,6 @@
 
 - [ ] With DevTools open on the tab, confirm Bigshoot asks the user to close DevTools.
 - [ ] Confirm a page at least 40,000 CSS px tall captures fully.
-- [ ] Confirm an extremely large page that exceeds Chrome memory returns a clear error.
+- [ ] Confirm an extremely large page falls back to a safe scale or returns a clear error if Chrome memory is still insufficient.
 - [ ] Navigate the tab during capture and confirm no debugger connection remains attached.
 - [ ] Disable **Allow access to file URLs**, capture a local MHTML file, and confirm the badge tells the user how to enable it.

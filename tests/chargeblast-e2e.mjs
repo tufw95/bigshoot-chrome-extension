@@ -6,6 +6,7 @@ import path from "node:path";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const mhtmlPath = path.join(projectRoot, "Chargeblast.mhtml");
 const artifactRoot = path.join(projectRoot, "output/playwright");
+const NATIVE_SCALE = 2;
 const playwrightPath = "/Users/tutran/.npm/_npx/705bc6b22212b352/node_modules/playwright/index.js";
 const chromePath = "/Users/tutran/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 
@@ -70,9 +71,9 @@ try {
     const current = readPngDimensions(buffer);
     dimensions ||= current;
     assert.deepEqual(current, dimensions, `Chargeblast capture ${iteration + 1} changed dimensions.`);
-    assert.equal(current.width, before.viewport.width, "Chargeblast PNG width must match the pre-capture tab width.");
-    assert(current.height >= before.scroller.contentHeight - 2, `Chargeblast PNG is cropped: ${current.height}px vs ${before.scroller.contentHeight}px.`);
-    assert(current.height > before.finalRow.bottom, "Chargeblast PNG is cropped before the drawer's final row.");
+    assert.equal(current.width, before.viewport.width * NATIVE_SCALE, "Chargeblast PNG must use the tab's native pixel width.");
+    assert(current.height >= (before.scroller.contentHeight - 2) * NATIVE_SCALE, `Chargeblast PNG is cropped: ${current.height}px vs ${before.scroller.contentHeight}px.`);
+    assert(current.height > before.finalRow.bottom * NATIVE_SCALE, "Chargeblast PNG is cropped before the drawer's final row.");
 
     const after = await inspectPage(page);
     assert.deepEqual(after.html.style, before.html.style, "Chargeblast html styles changed after capture.");
@@ -88,8 +89,11 @@ try {
     }
   }
 
+  await worker.evaluate(async () => chrome.storage.sync.set({ destination: "clipboard" }));
+  await triggerCapture(worker);
+
   const averageDuration = Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
-  console.log(`Chargeblast E2E passed: 3 captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average, drawer included, page restored.`);
+  console.log(`Chargeblast E2E passed: 3 captures at ${dimensions.width}x${dimensions.height}, ${averageDuration}ms average, clipboard, drawer included, page restored.`);
 } finally {
   await context.close();
 }
@@ -99,6 +103,8 @@ async function copyExtension(sourceRoot, targetRoot) {
     "manifest.json",
     "src/background.js",
     "src/capture-page.js",
+    "src/clipboard.html",
+    "src/clipboard.js",
     "src/options/options.css",
     "src/options/options.html",
     "src/options/options.js",
@@ -137,7 +143,7 @@ async function inspectPage(page) {
       scrollHeight: node.scrollHeight,
     });
     return {
-      viewport: { width: innerWidth, height: innerHeight },
+      viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
       html: styleSnapshot(document.documentElement),
       body: styleSnapshot(document.body),
       scroller: element && {
