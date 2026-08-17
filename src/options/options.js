@@ -32,7 +32,7 @@ async function saveSettings(event) {
   status.textContent = "Saved. Your next capture will use this setting.";
   setTimeout(() => {
     status.textContent = "";
-  }, 3500);
+  }, 2200);
 }
 
 async function restoreShortcut() {

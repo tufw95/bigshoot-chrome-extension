@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.4 - 2026-08-17
+
+- Crop fullscreen app captures to the visible top layer so an underlying sidebar is not included.
+- Release the debugger before starting a device download so Chrome's debugger infobar clears promptly.
+- Refresh the Settings experience with a compact capture-console layout, clearer destination controls, responsive behavior, and a new capture-frame logo.
+
 ## 1.1.3 - 2026-08-17
 
 - Warm the page by scrolling through its content before capture so lazy-rendered sections are present and the interaction feels like a real full-page capture.

@@ -3,43 +3,67 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111820">
     <title>Bigshoot settings</title>
     <link rel="stylesheet" href="options.css">
   </head>
   <body>
     <main class="shell">
       <header class="masthead">
-        <div class="brand-mark" aria-hidden="true">
-          <span></span>
-        </div>
-        <div>
-          <p class="eyebrow">BIGSHOOT / SETTINGS</p>
-          <h1>One shortcut. The whole page.</h1>
-          <p class="intro">Choose where full-page screenshots go after you press the shortcut or toolbar icon.</p>
+        <a class="brand" href="#settings" aria-label="Bigshoot settings">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="M10 15.5h7l2.7-4h8.6l2.7 4h7c1.7 0 3 1.3 3 3v17c0 1.7-1.3 3-3 3H10c-1.7 0-3-1.3-3-3v-17c0-1.7 1.3-3 3-3Z" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linejoin="round"/>
+              <circle cx="24" cy="26.5" r="7.1" fill="none" stroke="currentColor" stroke-width="2.8"/>
+              <path d="M24 19.4v3.1M24 30.5v3.1M16.9 26.5H20M28 26.5h3.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand-name">Bigshoot</span>
+        </a>
+        <div class="masthead-copy">
+          <p class="eyebrow">CAPTURE CONSOLE / SETTINGS</p>
+          <h1>Everything below the fold, in one frame.</h1>
+          <p class="intro">Bigshoot turns the active webpage into one sharp PNG. Choose where it lands, then use the shortcut whenever you need a clean full-page capture.</p>
         </div>
       </header>
 
       <form id="settings-form" class="settings-card">
-        <fieldset>
-          <legend>Screenshot destination</legend>
-          <p class="field-note">This setting applies to your next capture immediately.</p>
+        <section class="hero-panel" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="section-kicker">THE ONLY MODE</p>
+            <h2 id="hero-title">Capture the full page</h2>
+            <p>Bigshoot scrolls through the page to wake lazy content, captures the complete document, and returns you to the exact spot you started.</p>
+          </div>
+          <div class="hero-badge" aria-hidden="true">
+            <span class="badge-dot"></span>
+            <span>READY</span>
+          </div>
+        </section>
+
+        <fieldset class="destination-fieldset">
+          <legend>Where should the PNG go?</legend>
+          <p class="field-note">This choice applies to your next capture immediately.</p>
 
           <label class="choice">
             <input type="radio" name="destination" value="download" checked>
-            <span class="choice-icon" aria-hidden="true">↓</span>
-            <span>
+            <span class="choice-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="choice-copy">
               <strong>Save to device</strong>
-              <small>Uses Chrome's current download location and prompt settings.</small>
+              <small>Uses Chrome's current download folder and prompt settings.</small>
             </span>
             <span class="check" aria-hidden="true"></span>
           </label>
 
           <label class="choice">
             <input type="radio" name="destination" value="clipboard">
-            <span class="choice-icon" aria-hidden="true">⌘</span>
-            <span>
+            <span class="choice-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="7" y="4.5" width="10" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 4.5v-1h5v1M10 9.5h4M10 13h4M10 16.5h2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+            <span class="choice-copy">
               <strong>Copy to clipboard</strong>
-              <small>Paste directly into chat, documents, or design tools.</small>
+              <small>Paste the PNG straight into chat, docs, or design tools.</small>
             </span>
             <span class="check" aria-hidden="true"></span>
           </label>
@@ -47,10 +71,13 @@
 
         <section class="command-field" aria-labelledby="command-title">
           <div class="command-copy">
-            <span class="command-icon" aria-hidden="true">⌘</span>
+            <span class="command-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M6 7.5h12M6 12h7M6 16.5h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16.5" cy="12" r="2.1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+            </span>
             <div>
-              <h2 id="command-title">Capture the full page</h2>
-              <p>Pressing the shortcut immediately captures the entire active webpage.</p>
+              <p class="section-kicker">QUICK LAUNCH</p>
+              <h2 id="command-title">Your capture shortcut</h2>
+              <p>Press it from any webpage, or click the Bigshoot icon in Chrome's toolbar.</p>
             </div>
           </div>
           <div class="command-control">
@@ -61,14 +88,15 @@
 
         <footer class="form-footer">
           <p id="status" role="status" aria-live="polite"></p>
-          <button type="submit">Save settings</button>
+          <button class="save-button" type="submit">Save settings <span aria-hidden="true">↗</span></button>
         </footer>
       </form>
 
       <section class="shortcut-strip" aria-label="Capture methods">
-        <span><kbd>⌘ ⇧ 6</kbd> Capture the full page</span>
-        <span><kbd>Toolbar</kbd> Click the Bigshoot icon</span>
+        <span><kbd>⌘ ⇧ 6</kbd> Capture from the keyboard</span>
+        <span><kbd>Toolbar</kbd> Capture from the browser chrome</span>
       </section>
+      <p class="footer-note">Bigshoot is local by design. No screenshots or page content leave your device.</p>
     </main>
     <script src="options.js"></script>
   </body>

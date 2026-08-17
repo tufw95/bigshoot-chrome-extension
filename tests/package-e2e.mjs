@@ -83,7 +83,7 @@ try {
     const current = { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
     dimensions ||= current;
     assert.deepEqual(current, dimensions, `Packaged Chargeblast capture ${iteration + 1} changed dimensions.`);
-    assert.equal(current.width, 2880, "Packaged Chargeblast PNG does not use native Retina width.");
+    assert.equal(current.width, 2092, "Packaged Chargeblast PNG must crop to the fullscreen drawer width.");
     assert(current.height >= 2420, `Packaged Chargeblast PNG is cropped at ${current.height}px.`);
     if (iteration === 0) {
       await mkdir(artifactRoot, { recursive: true });

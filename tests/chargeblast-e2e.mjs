@@ -71,7 +71,7 @@ try {
     const current = readPngDimensions(buffer);
     dimensions ||= current;
     assert.deepEqual(current, dimensions, `Chargeblast capture ${iteration + 1} changed dimensions.`);
-    assert.equal(current.width, before.viewport.width * NATIVE_SCALE, "Chargeblast PNG must use the tab's native pixel width.");
+    assert.equal(current.width, (before.scroller.state.rect.width - 4) * NATIVE_SCALE, "Chargeblast PNG must crop to the fullscreen drawer width.");
     assert(current.height >= (before.scroller.contentHeight - 2) * NATIVE_SCALE, `Chargeblast PNG is cropped: ${current.height}px vs ${before.scroller.contentHeight}px.`);
     assert(current.height > before.finalRow.bottom * NATIVE_SCALE, "Chargeblast PNG is cropped before the drawer's final row.");
 

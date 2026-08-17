@@ -110,7 +110,15 @@ async function captureFullPage(tab) {
     const dataUrl = `data:image/png;base64,${result.data}`;
     if (settings.destination === "clipboard") {
       await copyImageToClipboard(tab.id, dataUrl);
+      await releaseCaptureResources(tab.id, { pagePrepared, debuggerAttached });
+      pagePrepared = false;
+      debuggerAttached = false;
     } else {
+      // Detach before handing the PNG to Chrome Downloads so its debugger infobar disappears
+      // as soon as the screenshot is ready, rather than waiting for the file write to finish.
+      await releaseCaptureResources(tab.id, { pagePrepared, debuggerAttached });
+      pagePrepared = false;
+      debuggerAttached = false;
       await chrome.downloads.download({
         url: dataUrl,
         filename: buildFilename(tab.title),
@@ -135,7 +143,7 @@ async function captureFullPage(tab) {
       await restorePageAfterCapture(tab.id);
     }
     if (debuggerAttached) {
-      await chrome.debugger.detach({ tabId: tab.id }).catch(() => {});
+      await detachDebugger(tab.id);
     }
     activeCaptures.delete(tab.id);
   }
@@ -173,6 +181,19 @@ async function restorePageAfterCapture(tabId) {
   }).catch(() => {});
 }
 
+async function releaseCaptureResources(tabId, state) {
+  if (state.pagePrepared) {
+    await restorePageAfterCapture(tabId);
+  }
+  if (state.debuggerAttached) {
+    await detachDebugger(tabId);
+  }
+}
+
+async function detachDebugger(tabId) {
+  await chrome.debugger.detach({ tabId }).catch(() => {});
+}
+
 async function waitForPagePaint(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId },
@@ -200,6 +221,12 @@ function sanitizeClip(contentSize) {
 
 function clampCaptureClip(clip, pagePlan, viewport) {
   if (!pagePlan?.expanded) {
+    return clip;
+  }
+  if (pagePlan.captureRect) {
+    clip.x = pagePlan.captureRect.x;
+    clip.y = pagePlan.captureRect.y;
+    clip.width = pagePlan.captureRect.width;
     return clip;
   }
   if (Number.isFinite(pagePlan.originalDocumentSize?.width)) {

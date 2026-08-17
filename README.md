@@ -54,6 +54,7 @@ docs/TEST_PLAN.md             Manual test scenarios
 - Bigshoot warms lazy-rendered content by scrolling through the page before capture, but content that the website never renders may still be absent.
 - Canvas, WebGL, video, and cross-origin iframe content may vary with page security policies.
 - If the page is an app shell whose document itself is viewport-sized but has one dominant visible vertical drawer or panel, Bigshoot temporarily expands that region, warms it by scrolling, captures it, and restores the original layout and scroll position.
+- When that drawer or panel is a fixed/sticky fullscreen surface, Bigshoot crops the PNG to that top surface so the page behind it is not included.
 - Normal pages use native Retina/device pixels. Extremely large pages automatically fall back to a safer CSS-pixel scale when Chrome's image-memory limits require it.
 
 ## Privacy

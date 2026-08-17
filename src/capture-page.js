@@ -47,11 +47,14 @@
       };
     }
 
-    expandScrollerIntoDocument(candidate);
+    const surface = findViewportSurface(candidate);
+    const captureRect = readCaptureRect(surface);
+    expandScrollerIntoDocument(candidate, surface);
     return {
       expanded: true,
       originalDocumentSize,
       documentSize: readDocumentSize(),
+      captureRect,
       scroller: {
         clientHeight: candidate.clientHeight,
         scrollHeight: candidate.scrollHeight,
@@ -159,8 +162,7 @@
     return best?.element || null;
   }
 
-  function expandScrollerIntoDocument(scroller) {
-    const surface = findViewportSurface(scroller);
+  function expandScrollerIntoDocument(scroller, surface = findViewportSurface(scroller)) {
     const shell = scroller.parentElement;
 
     state.scrollPositions.push({
@@ -212,6 +214,26 @@
       }
     }
     return surface;
+  }
+
+  function readCaptureRect(surface) {
+    if (!(surface instanceof HTMLElement)) {
+      return null;
+    }
+    const style = getComputedStyle(surface);
+    const rect = surface.getBoundingClientRect();
+    const coversViewport = rect.width >= innerWidth * 0.5 && rect.height >= innerHeight * 0.75;
+    if (!coversViewport || !["fixed", "sticky"].includes(style.position)) {
+      return null;
+    }
+    // Keep the edge of an app drawer out of the image when the page behind it
+    // paints a divider or a narrow sticky rail above the drawer boundary.
+    const edgeInset = Math.min(4, Math.max(0, Math.floor(rect.width / 100)));
+    return {
+      x: Math.max(0, Math.round(rect.left + scrollX + edgeInset)),
+      y: Math.max(0, Math.round(rect.top + scrollY)),
+      width: Math.max(1, Math.round(rect.width - edgeInset)),
+    };
   }
 
   function setStyle(element, property, value) {
